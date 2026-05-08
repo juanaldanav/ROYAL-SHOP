@@ -1,0 +1,15 @@
+# Agrega esto a tu ~/.ssh/config (opcional)
+# Facilita el acceso sin escribir el usuario completo
+
+Host lighthouse-vm
+    HostName soporte.lamarque.mx
+    User noreply
+    # No se necesita IdentityFile porque usas gcloud OS Login
+
+# Uso: ssh lighthouse-vm
+# Tunnel para acceder a servicios internos:
+#   ssh -L 5678:localhost:5678 -L 9443:localhost:9443 -L 8001:localhost:8001 lighthouse-vm
+# Luego abrir en navegador:
+#   https://n8n.localhost:9443
+#   https://chatwoot.localhost:9443
+#   https://evolution.localhost:9443 (acepta cert self-signed)
