@@ -85,3 +85,107 @@ ssh noreply@soporte.lamarque.mx → connected (Linux omada-controller 6.8.0-1053
 
 Iniciando git init y creación de estructura de carpetas.
 
+**Completado:**
+- git init en `D:\lighthouse bot\`
+- `.gitignore` con todas las exclusiones necesarias (secretos, snapshots, logs, __pycache__)
+- Estructura de carpetas completa: n8n/workflows, booksy-executor/src/{api,booksy,observability}, prompts, docs, scripts, postgres/init
+- `.env.example` con todas las variables documentadas en línea
+- Commit: `chore: initial project structure with infra report`
+
+---
+
+## 2026-05-07T23:55 — Bloque B: Docker Compose
+
+**Versiones de imágenes investigadas y pinneadas (via agente de búsqueda):**
+- postgres:16.13
+- redis:7.4.9
+- n8nio/n8n:2.19.5
+- chatwoot/chatwoot:v4.13.0 (**corrección:** brief decía `atendai/chatwoot`, imagen correcta es `chatwoot/chatwoot`)
+- evoapicloud/evolution-api:v2.3.7 (**corrección:** brief decía `evolutionapi/evolution-api`, imagen activa es `evoapicloud/evolution-api`)
+- caddy:2.11.2
+- Playwright base: mcr.microsoft.com/playwright/python:v1.59.0-jammy (Python 3.12, Ubuntu 22.04)
+
+**Decisión Chatwoot:** Split en dos servicios (`chatwoot-web` 512m + `chatwoot-sidekiq` 256m) para respetar resource limits con el patrón oficial de Chatwoot.
+
+**Caddyfile:** TLS interno (`tls internal`) con sitios `*.localhost:9443`. Acceso vía SSH tunnel durante testing.
+
+**docker compose config --quiet en la VM:** Exit 0 (YAML válido, warnings de vars sin .env esperados).
+
+---
+
+## 2026-05-08T00:20 — Bloque C: booksy-executor
+
+**Microservicio Python/FastAPI:**
+- Playwright persistent context por sucursal con lazy-init y mutex (asyncio.Lock)
+- Anti-detección: `navigator.webdriver=undefined` via `add_init_script`
+- Selector cascade: testid > role > text > CSS con `find_with_fallback`
+- Circuit breaker en Redis: 3 fallos/60s → OPEN 5min → 503
+- Snapshot automático en fallo: screenshot + HTML + URL + timestamp
+- Logging JSON estructurado con structlog
+- Endpoints stubbeados (availability, book, reschedule, cancel) — esperan selectores reales
+- Smoke tests pasan sin Playwright ni Redis reales
+
+---
+
+## 2026-05-08T00:45 — Bloque D: Prompts Gemini
+
+**system_prompt_humanizer.md:**
+- Persona: Sofía, 28 años, culichi. 2 oraciones máx.
+- Topic guardrail: solo citas/servicios/precios/ubicaciones/horarios
+- Output JSON estructurado: text, intent, requires_tool, tool_name, tool_args
+- 8 few-shot examples cubriendo book, reschedule, cancel, no-availability, off-topic, human_handoff
+- Anti-alucinación: nunca inventar datos, usar tool call si no tiene certeza
+
+**intent_classifier.md:** 7 categorías, maxOutputTokens: 10
+
+**refusal_templates.md:** 5 categorías, 2-3 variantes cada una en español sinaloense natural
+
+---
+
+## 2026-05-08T01:00 — Bloque E: Workflows n8n
+
+- 01-whatsapp-inbound: webhook Evolution → normalize → `dedup:msg:{id}` (NX TTL1h) → `ratelimit:{phone}` (INCR+TTL60s, max 10) → router
+- 02-intent-router: regex pre-filter (ahorra ~60% llamadas a Gemini) → Gemini classify (max 10 tokens) → switch por intent
+- 03-booking-flow: `GET conv:{phone}` → últimos 6 turnos → Gemini humanizer → tool dispatch → send WhatsApp → `SET conv:{phone} TTL24h`
+- 04-human-handoff: search/create contact en Chatwoot → crear conversación → reply WhatsApp → `SET human:{phone} TTL2h`
+
+---
+
+## 2026-05-08T01:20 — Bloque F: Deploy + Bootstrap
+
+**Transfer:** tar+ssh de repo local → `/opt/lighthouse-bot/` en VM (excluye .env*, snapshots, logs)
+
+**Bootstrap exitoso:**
+- Docker CE 29.4.3 instalado
+- docker-compose-plugin v5.1.3 instalado
+- lighthouse agregado al grupo docker
+- Todos los servicios críticos verificados activos post-instalación
+
+**Nota importante:** `needrestart` mostró lista de servicios que "deberían reiniciarse" por el kernel update pendiente — pero NO los reinició. Servicios siguen corriendo normalmente. El reinicio del kernel lo decide el humano.
+
+**Validación final:**
+- `docker compose config --quiet` en VM → Exit 0 ✅
+- `sudo systemctl is-active apache2 mariadb tpeap gcp-fluent-bit gcp-otelcol` → todos `active` ✅
+- 15 archivos en `/opt/lighthouse-bot/` ✅
+
+---
+
+## 2026-05-08T01:45 — Bloque G: Documentación
+
+- ADR-001: Playwright strategy
+- ADR-002: Gemini cost controls (4 capas)
+- ADR-003: Redis key patterns + TTLs
+- ADR-004: Port strategy + 3 opciones de exposición pública
+- ARCHITECTURE.md: diagrama Mermaid end-to-end
+- RUNBOOK.md: 8 escenarios de fallo con comandos exactos
+- COST_MODEL.md: ~$5-10 USD/mes incremental, detalle por servicio
+
+---
+
+## 2026-05-08T02:00 — Cierre de sesión
+
+**Estado final:** Todos los bloques completados (0 bloqueados).
+**Commits:** 7 commits en `master` branch.
+**Servicios pre-existentes:** Apache, MariaDB, Omada, GCP telemetría — todos `active` al cierre.
+**Próximo paso:** Humano llena `.env` en la VM y corre `docker compose up -d`.
+
