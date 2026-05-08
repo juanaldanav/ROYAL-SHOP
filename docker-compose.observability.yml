@@ -1,0 +1,43 @@
+---
+# Lighthouse Bot — Perfil de Observabilidad (Loki + Grafana)
+# NO activar por default — RAM limitada en la VM
+# Uso: docker compose --profile observability up -d
+#
+# ADVERTENCIA: Agrega ~600 MiB RAM. Solo activar si hay >1.5 GiB libres.
+
+networks:
+  lighthouse-net:
+    external: true
+
+volumes:
+  lighthouse_loki_data:
+  lighthouse_grafana_data:
+
+services:
+  loki:
+    image: grafana/loki:3.5.0
+    restart: unless-stopped
+    mem_limit: 256m
+    profiles: ["observability"]
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - lighthouse_loki_data:/loki
+    networks:
+      - lighthouse-net
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    restart: unless-stopped
+    mem_limit: 256m
+    profiles: ["observability"]
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - lighthouse_grafana_data:/var/lib/grafana
+    networks:
+      - lighthouse-net
+    depends_on:
+      - loki
