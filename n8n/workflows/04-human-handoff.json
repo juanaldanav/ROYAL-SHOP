@@ -1,0 +1,113 @@
+{
+  "name": "04 Human Handoff",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json.data || $input.item.json;\nreturn [{ json: data }];"
+      },
+      "id": "start-handoff",
+      "name": "Start",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.CHATWOOT_BASE_URL + '/api/v1/accounts/' + $vars.CHATWOOT_ACCOUNT_ID + '/contacts/search' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "api_access_token", "value": "={{ $vars.CHATWOOT_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ q: $json.phone, include_contacts: true }) }}"
+      },
+      "id": "chatwoot-find-contact",
+      "name": "Find/Create Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "notes": "Busca contacto en Chatwoot por número de teléfono"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer contact_id o preparar para crear nuevo\nconst response = $input.item.json;\nconst contacts = response.payload || [];\nconst phone = $('Start').item.json.phone;\n\nif (contacts.length > 0) {\n  return [{ json: { contactId: contacts[0].id, phone, isNew: false } }];\n}\n\n// No existe, se crea a continuación\nreturn [{ json: { contactId: null, phone, isNew: true } }];"
+      },
+      "id": "check-contact",
+      "name": "Contact Found?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.CHATWOOT_BASE_URL + '/api/v1/accounts/' + $vars.CHATWOOT_ACCOUNT_ID + '/conversations' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "api_access_token", "value": "={{ $vars.CHATWOOT_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ inbox_id: parseInt($vars.CHATWOOT_INBOX_ID), contact_id: $json.contactId || 0, additional_attributes: { phone: $json.phone, source: 'whatsapp_bot', handoff_reason: $('Start').item.json.text } }) }}"
+      },
+      "id": "chatwoot-create-conversation",
+      "name": "Create/Update Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300],
+      "notes": "Crea conversación en Chatwoot para atención humana"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://evolution-api:8080/message/sendText/' + $('Start').item.json.instanceName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{ $vars.EVOLUTION_API_KEY }}" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Start').item.json.phone, text: 'Entiendo, te comunico con alguien del equipo ahorita.' }) }}"
+      },
+      "id": "send-handoff-message",
+      "name": "Send Handoff Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "name": "={{ 'human:' + $('Start').item.json.phone }}",
+        "value": "1",
+        "ttl": 7200
+      },
+      "id": "redis-mark-human",
+      "name": "Redis MARK Human (2h TTL)",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "notes": "Marca el número como en atención humana por 2h. El inbound flow verifica esta key."
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Find/Create Contact", "type": "main", "index": 0 }]] },
+    "Find/Create Contact": { "main": [[{ "node": "Contact Found?", "type": "main", "index": 0 }]] },
+    "Contact Found?": { "main": [[{ "node": "Create/Update Conversation", "type": "main", "index": 0 }]] },
+    "Create/Update Conversation": { "main": [[{ "node": "Send Handoff Message", "type": "main", "index": 0 }]] },
+    "Send Handoff Message": { "main": [[{ "node": "Redis MARK Human (2h TTL)", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [{ "name": "lighthouse" }]
+}

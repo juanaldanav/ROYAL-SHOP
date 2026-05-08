@@ -1,0 +1,166 @@
+{
+  "name": "03 Booking Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Recuperar contexto conversacional de Redis\n// key: conv:{phone}, TTL 24h\n// Estructura: { state, location, service, slot, clientName, lastIntent, turns: [] }\nconst data = $input.item.json.data || $input.item.json;\nreturn [{ json: data }];"
+      },
+      "id": "start",
+      "name": "Start",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "name": "={{ 'conv:' + $json.phone }}"
+      },
+      "id": "redis-get-context",
+      "name": "Redis GET Context",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsear contexto o iniciar uno nuevo\nlet ctx;\ntry {\n  ctx = JSON.parse($input.item.json || '{}');\n} catch {\n  ctx = {};\n}\n\nconst incoming = $('Start').item.json;\n\nctx.phone = incoming.phone;\nctx.lastText = incoming.text;\nctx.intent = incoming.intent;\nctx.turns = ctx.turns || [];\n\n// Limitar a últimos 6 turnos\nctx.turns.push({ role: 'user', text: incoming.text });\nif (ctx.turns.length > 12) ctx.turns = ctx.turns.slice(-12); // 6 intercambios = 12 mensajes\n\nconst conversationHistory = ctx.turns.map(t => `${t.role === 'user' ? 'Cliente' : 'Bot'}: ${t.text}`).join('\\n');\n\nreturn [{ json: { ...incoming, ctx, conversationHistory } }];"
+      },
+      "id": "parse-context",
+      "name": "Parse Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/{{ $vars.GEMINI_MODEL || 'gemini-2.5-flash-lite' }}:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "key", "value": "={{ $vars.GEMINI_API_KEY }}" }]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{ \"parts\": [{ \"text\": {{ JSON.stringify($json.systemPrompt + '\\n\\nContexto:\\n' + $json.conversationHistory + '\\n\\nMensaje actual: ' + $json.text) }} }] }]"
+            },
+            { "name": "generationConfig", "value": "={ \"maxOutputTokens\": 256, \"temperature\": 0.3 }" }
+          ]
+        }
+      },
+      "id": "gemini-humanizer",
+      "name": "Gemini Humanizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300],
+      "notes": "Usa system_prompt_humanizer.md. El systemPrompt se inyecta desde vars de n8n."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsear respuesta JSON del humanizer\nconst response = $input.item.json;\nconst rawText = response.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n\nlet parsed;\ntry {\n  // Extraer JSON del texto (puede venir con ```json ... ```)\n  const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);\n} catch {\n  parsed = { text: 'Ahorita tengo un problemita técnico, dame un momento.', intent: 'error', requires_tool: false };\n}\n\nconst incoming = $('Parse Context').item.json;\nreturn [{ json: { ...incoming, geminiResponse: parsed } }];"
+      },
+      "id": "parse-gemini-response",
+      "name": "Parse Gemini Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.geminiResponse.requires_tool }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "needs-tool",
+      "name": "Needs Tool?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://booksy-executor:8000/{{ $json.geminiResponse.tool_name === 'get_availability' ? 'availability' : 'health' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "location", "value": "={{ $json.geminiResponse.tool_args.location || '1' }}" },
+            { "name": "service", "value": "={{ $json.geminiResponse.tool_args.service || '' }}" },
+            { "name": "date_from", "value": "={{ $json.geminiResponse.tool_args.date_from || '' }}" },
+            { "name": "date_to", "value": "={{ $json.geminiResponse.tool_args.date_to || '' }}" }
+          ]
+        }
+      },
+      "id": "call-booksy",
+      "name": "Call Booksy Executor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1450, 200],
+      "notes": "Llama al microservicio booksy-executor en loopback"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://evolution-api:8080/message/sendText/' + $('Start').item.json.instanceName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{ $vars.EVOLUTION_API_KEY }}" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Start').item.json.phone, text: $('Parse Gemini Response').item.json.geminiResponse.text }) }}"
+      },
+      "id": "send-whatsapp-reply",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "name": "={{ 'conv:' + $('Start').item.json.phone }}",
+        "value": "={{ JSON.stringify($('Parse Context').item.json.ctx) }}",
+        "ttl": 86400
+      },
+      "id": "redis-save-context",
+      "name": "Redis SAVE Context",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Redis GET Context", "type": "main", "index": 0 }]] },
+    "Redis GET Context": { "main": [[{ "node": "Parse Context", "type": "main", "index": 0 }]] },
+    "Parse Context": { "main": [[{ "node": "Gemini Humanizer", "type": "main", "index": 0 }]] },
+    "Gemini Humanizer": { "main": [[{ "node": "Parse Gemini Response", "type": "main", "index": 0 }]] },
+    "Parse Gemini Response": { "main": [[{ "node": "Needs Tool?", "type": "main", "index": 0 }]] },
+    "Needs Tool?": {
+      "main": [
+        [{ "node": "Call Booksy Executor", "type": "main", "index": 0 }],
+        [{ "node": "Send WhatsApp Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Call Booksy Executor": { "main": [[{ "node": "Send WhatsApp Reply", "type": "main", "index": 0 }]] },
+    "Send WhatsApp Reply": { "main": [[{ "node": "Redis SAVE Context", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [{ "name": "lighthouse" }]
+}
