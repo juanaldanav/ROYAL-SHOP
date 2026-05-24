@@ -183,9 +183,13 @@ model Sale {
   tax      Decimal @default(0) @db.Decimal(10, 2)
   total    Decimal @db.Decimal(10, 2)
 
-  paymentMethod PaymentMethod @default(CASH)
-  amountPaid    Decimal       @db.Decimal(10, 2)
-  change        Decimal       @default(0) @db.Decimal(10, 2)
+  paymentMethod    PaymentMethod @default(CASH)
+  amountPaid       Decimal       @db.Decimal(10, 2)
+  change           Decimal       @default(0) @db.Decimal(10, 2)
+  // Desglose para pago mixto (solo se usa cuando paymentMethod = MIXED)
+  cashAmount       Decimal       @default(0) @db.Decimal(10, 2)
+  cardAmount       Decimal       @default(0) @db.Decimal(10, 2)
+  transferAmount   Decimal       @default(0) @db.Decimal(10, 2)
 
   customerName  String?
   customerPhone String?

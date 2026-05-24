@@ -40,7 +40,10 @@ type Sale = {
   total: string
   change: string
   amountPaid: string
-  paymentMethod: "CASH" | "CARD" | "TRANSFER"
+  cashAmount: string
+  cardAmount: string
+  transferAmount: string
+  paymentMethod: "CASH" | "CARD" | "TRANSFER" | "MIXED"
   status: "COMPLETED" | "REFUNDED" | "CANCELLED"
   items: SaleItem[]
   user: { name: string } | null
@@ -51,6 +54,7 @@ const METHOD_LABEL: Record<string, string> = {
   CASH: "Efectivo",
   CARD: "Tarjeta",
   TRANSFER: "Transferencia",
+  MIXED: "Pago Mixto",
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -155,6 +159,34 @@ function TicketView({ sale }: { sale: Sale }) {
               <span className="text-muted-foreground">Cambio</span>
               <span>{formatMXN(parseFloat(sale.change))}</span>
             </div>
+          </>
+        )}
+        {sale.paymentMethod === "MIXED" && (
+          <>
+            {parseFloat(sale.cashAmount) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">· Efectivo</span>
+                <span>{formatMXN(parseFloat(sale.cashAmount))}</span>
+              </div>
+            )}
+            {parseFloat(sale.cardAmount) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">· Tarjeta</span>
+                <span>{formatMXN(parseFloat(sale.cardAmount))}</span>
+              </div>
+            )}
+            {parseFloat(sale.transferAmount) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">· Transferencia</span>
+                <span>{formatMXN(parseFloat(sale.transferAmount))}</span>
+              </div>
+            )}
+            {parseFloat(sale.change) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cambio</span>
+                <span>{formatMXN(parseFloat(sale.change))}</span>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -484,7 +516,29 @@ export default function VentasPage() {
                     <span>Método de pago</span>
                     <span>{METHOD_LABEL[detail.paymentMethod] ?? detail.paymentMethod}</span>
                   </div>
-                  {detail.paymentMethod === "CASH" && (
+                  {detail.paymentMethod === "MIXED" && (
+                    <div className="pl-2 space-y-0.5 text-xs text-muted-foreground">
+                      {parseFloat(detail.cashAmount) > 0 && (
+                        <div className="flex justify-between">
+                          <span>· Efectivo</span>
+                          <span className="font-mono">{formatMXN(parseFloat(detail.cashAmount))}</span>
+                        </div>
+                      )}
+                      {parseFloat(detail.cardAmount) > 0 && (
+                        <div className="flex justify-between">
+                          <span>· Tarjeta</span>
+                          <span className="font-mono">{formatMXN(parseFloat(detail.cardAmount))}</span>
+                        </div>
+                      )}
+                      {parseFloat(detail.transferAmount) > 0 && (
+                        <div className="flex justify-between">
+                          <span>· Transferencia</span>
+                          <span className="font-mono">{formatMXN(parseFloat(detail.transferAmount))}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(detail.paymentMethod === "CASH" || detail.paymentMethod === "MIXED") && parseFloat(detail.change) > 0 && (
                     <div className="flex justify-between text-muted-foreground">
                       <span>Cambio entregado</span>
                       <span className="font-mono">{formatMXN(parseFloat(detail.change))}</span>

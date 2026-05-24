@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
       customerName,
       customerPhone,
       customerEmail,
+      // Pago mixto — solo cuando paymentMethod === "MIXED"
+      cashAmount = 0,
+      cardAmount = 0,
+      transferAmount = 0,
     } = body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -81,7 +85,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "El monto pagado es insuficiente" }, { status: 400 })
     }
 
-    const change = paymentMethod === "CASH" ? Number(amountPaid) - total : 0
+    if (paymentMethod === "MIXED") {
+      const mixedTotal = Number(cashAmount) + Number(cardAmount) + Number(transferAmount)
+      if (mixedTotal < total) {
+        return NextResponse.json(
+          { error: `Pago mixto insuficiente. Suma: $${mixedTotal.toFixed(2)}, Total: $${total.toFixed(2)}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    const change =
+      paymentMethod === "CASH"
+        ? Number(amountPaid) - total
+        : paymentMethod === "MIXED"
+        ? Math.max(0, Number(cashAmount) - Math.max(0, total - Number(cardAmount) - Number(transferAmount)))
+        : 0
 
     const sale = await db.$transaction(async (tx) => {
       const folio = generateFolio()
@@ -98,8 +117,13 @@ export async function POST(req: NextRequest) {
           tax: 0,
           total,
           paymentMethod: paymentMethod as PaymentMethod,
-          amountPaid: Number(amountPaid),
+          amountPaid: paymentMethod === "MIXED"
+            ? Number(cashAmount) + Number(cardAmount) + Number(transferAmount)
+            : Number(amountPaid),
           change,
+          cashAmount: paymentMethod === "MIXED" ? Number(cashAmount) : paymentMethod === "CASH" ? Number(amountPaid) : 0,
+          cardAmount: paymentMethod === "MIXED" ? Number(cardAmount) : paymentMethod === "CARD" ? Number(amountPaid) : 0,
+          transferAmount: paymentMethod === "MIXED" ? Number(transferAmount) : paymentMethod === "TRANSFER" ? Number(amountPaid) : 0,
           customerName: customerName ?? null,
           customerPhone: customerPhone ?? null,
           customerEmail: customerEmail ?? null,

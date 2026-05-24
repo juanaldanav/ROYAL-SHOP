@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -73,12 +73,13 @@ type CashCut = {
   status: string
 }
 
-type PaymentMethod = "CASH" | "CARD" | "TRANSFER"
+type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "MIXED"
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function POSPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Data
   const [products, setProducts] = useState<Product[]>([])
@@ -90,7 +91,8 @@ export default function POSPage() {
   // UI state
   const [activeCategory, setActiveCategory] = useState("all")
   const [cartOpen, setCartOpen] = useState(false)
-  const [scannerOpen, setScannerOpen] = useState(false)
+  // Auto-open scanner if ?scan=1 was passed from the "Hacer Venta → ESCANEAR" flow
+  const [scannerOpen, setScannerOpen] = useState(searchParams.get("scan") === "1")
   const [paymentOpen, setPaymentOpen] = useState(false)
 
   // Cart
@@ -102,6 +104,10 @@ export default function POSPage() {
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH")
   const [amountPaid, setAmountPaid] = useState("")
+  // Pago mixto
+  const [mixedCash, setMixedCash] = useState("")
+  const [mixedSecond, setMixedSecond] = useState("")
+  const [mixedSecondMethod, setMixedSecondMethod] = useState<"CARD" | "TRANSFER">("CARD")
   const [submitting, setSubmitting] = useState(false)
 
   // ── Load data ──────────────────────────────────────────────────────────────
@@ -221,6 +227,9 @@ export default function POSPage() {
     setCustomerPhone("")
     setCustomerEmail("")
     setAmountPaid("")
+    setMixedCash("")
+    setMixedSecond("")
+    setMixedSecondMethod("CARD")
     setPaymentMethod("CASH")
   }, [])
 
@@ -240,6 +249,12 @@ export default function POSPage() {
     },
     [products, addToCart]
   )
+
+  // Derived mixed amounts
+  const mixedCashNum   = parseFloat(mixedCash) || 0
+  const mixedSecondNum = parseFloat(mixedSecond) || Math.max(0, total - mixedCashNum)
+  const mixedChange    = Math.max(0, mixedCashNum + mixedSecondNum - total)
+  const mixedValid     = mixedCashNum + mixedSecondNum >= total && (mixedCashNum > 0 || mixedSecondNum > 0)
 
   // ── Submit sale ────────────────────────────────────────────────────────────
 
@@ -261,11 +276,17 @@ export default function POSPage() {
           quantity: i.quantity,
         })),
         paymentMethod,
-        amountPaid: parseFloat(amountPaid) || total,
+        amountPaid: paymentMethod === "MIXED"
+          ? mixedCashNum + mixedSecondNum
+          : parseFloat(amountPaid) || total,
         discount: discountAmount,
         customerName: undefined,
         customerPhone: customerPhone || undefined,
         customerEmail: customerEmail || undefined,
+        // Desglose mixto
+        cashAmount:     paymentMethod === "MIXED" ? mixedCashNum : undefined,
+        cardAmount:     paymentMethod === "MIXED" && mixedSecondMethod === "CARD" ? mixedSecondNum : undefined,
+        transferAmount: paymentMethod === "MIXED" && mixedSecondMethod === "TRANSFER" ? mixedSecondNum : undefined,
       }
 
       const res = await apiFetch("/api/sales", {
@@ -298,6 +319,9 @@ export default function POSPage() {
     discountAmount,
     customerPhone,
     customerEmail,
+    mixedCashNum,
+    mixedSecondNum,
+    mixedSecondMethod,
     resetCart,
   ])
 
@@ -305,6 +329,8 @@ export default function POSPage() {
 
   function openPayment() {
     setAmountPaid(total.toString())
+    setMixedCash("")
+    setMixedSecond(total.toString())
     setPaymentOpen(true)
   }
 
@@ -618,19 +644,20 @@ export default function POSPage() {
             <p className="text-3xl font-bold">{formatMXN(total)}</p>
           </div>
 
-          {/* Payment method */}
-          <div className="grid grid-cols-3 gap-2">
-            {(["CASH", "CARD", "TRANSFER"] as PaymentMethod[]).map((m) => {
+          {/* Payment method — 2×2 grid */}
+          <div className="grid grid-cols-2 gap-2">
+            {(["CASH", "CARD", "TRANSFER", "MIXED"] as PaymentMethod[]).map((m) => {
               const labels: Record<PaymentMethod, string> = {
                 CASH: "Efectivo",
                 CARD: "Tarjeta",
                 TRANSFER: "Transferencia",
+                MIXED: "Mixto",
               }
               return (
                 <button
                   key={m}
                   onClick={() => setPaymentMethod(m)}
-                  className={`rounded-xl border p-3 text-sm font-medium transition-colors min-h-[52px] ${
+                  className={`rounded-xl border p-3 text-sm font-medium transition-colors min-h-[48px] ${
                     paymentMethod === m
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-card hover:border-primary/50"
@@ -646,9 +673,7 @@ export default function POSPage() {
           {paymentMethod === "CASH" && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground shrink-0">
-                  Recibido
-                </label>
+                <label className="text-sm text-muted-foreground shrink-0 w-20">Recibido</label>
                 <Input
                   type="number"
                   min={total}
@@ -663,9 +688,89 @@ export default function POSPage() {
               </div>
               <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
                 <span className="text-sm text-muted-foreground">Cambio</span>
-                <span className="font-bold text-lg">
-                  {formatMXN(change)}
-                </span>
+                <span className="font-bold text-lg">{formatMXN(change)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Mixed payment fields */}
+          {paymentMethod === "MIXED" && (
+            <div className="space-y-3">
+              {/* Row 1: Cash */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium w-20 shrink-0">Efectivo</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.50"
+                  placeholder="0.00"
+                  value={mixedCash}
+                  onChange={(e) => {
+                    setMixedCash(e.target.value)
+                    const cash = parseFloat(e.target.value) || 0
+                    setMixedSecond(Math.max(0, total - cash).toFixed(2))
+                  }}
+                  className="h-10 text-right font-medium"
+                  inputMode="decimal"
+                  autoFocus
+                />
+              </div>
+
+              {/* Row 2: Card or Transfer selector + amount */}
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border overflow-hidden shrink-0">
+                  <button
+                    onClick={() => setMixedSecondMethod("CARD")}
+                    className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      mixedSecondMethod === "CARD"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Tarjeta
+                  </button>
+                  <button
+                    onClick={() => setMixedSecondMethod("TRANSFER")}
+                    className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      mixedSecondMethod === "TRANSFER"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Transfer.
+                  </button>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.50"
+                  placeholder="0.00"
+                  value={mixedSecond}
+                  onChange={(e) => setMixedSecond(e.target.value)}
+                  className="h-10 text-right font-medium"
+                  inputMode="decimal"
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-lg bg-muted/50 px-3 py-2 space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Total pagado</span>
+                  <span className={mixedValid ? "text-foreground font-medium" : "text-destructive font-medium"}>
+                    {formatMXN(mixedCashNum + mixedSecondNum)}
+                  </span>
+                </div>
+                {mixedChange > 0 && (
+                  <div className="flex justify-between text-sm font-bold">
+                    <span>Cambio</span>
+                    <span>{formatMXN(mixedChange)}</span>
+                  </div>
+                )}
+                {!mixedValid && (
+                  <p className="text-xs text-destructive">
+                    Faltan {formatMXN(total - mixedCashNum - mixedSecondNum)}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -678,8 +783,8 @@ export default function POSPage() {
               submitting ||
               cart.length === 0 ||
               !activeCashCut ||
-              (paymentMethod === "CASH" &&
-                (parseFloat(amountPaid) || 0) < total)
+              (paymentMethod === "CASH" && (parseFloat(amountPaid) || 0) < total) ||
+              (paymentMethod === "MIXED" && !mixedValid)
             }
           >
             {submitting ? "Registrando…" : "Confirmar Venta"}
