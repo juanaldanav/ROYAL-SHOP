@@ -97,6 +97,7 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [discount, setDiscount] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
+  const [customerEmail, setCustomerEmail] = useState("")
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH")
@@ -218,6 +219,7 @@ export default function POSPage() {
     setCart([])
     setDiscount("")
     setCustomerPhone("")
+    setCustomerEmail("")
     setAmountPaid("")
     setPaymentMethod("CASH")
   }, [])
@@ -263,6 +265,7 @@ export default function POSPage() {
         discount: discountAmount,
         customerName: undefined,
         customerPhone: customerPhone || undefined,
+        customerEmail: customerEmail || undefined,
       }
 
       const res = await apiFetch("/api/sales", {
@@ -294,6 +297,7 @@ export default function POSPage() {
     total,
     discountAmount,
     customerPhone,
+    customerEmail,
     resetCart,
   ])
 
@@ -555,7 +559,7 @@ export default function POSPage() {
                 {/* Customer phone */}
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-muted-foreground shrink-0 whitespace-nowrap">
-                    Tel. cliente
+                    Teléfono
                   </label>
                   <Input
                     type="tel"
@@ -564,6 +568,21 @@ export default function POSPage() {
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="h-9"
                     inputMode="tel"
+                  />
+                </div>
+
+                {/* Customer email */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground shrink-0 whitespace-nowrap">
+                    Correo
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="Opcional (ticket por email)"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="h-9"
+                    inputMode="email"
                   />
                 </div>
 

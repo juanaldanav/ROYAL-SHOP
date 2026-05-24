@@ -88,7 +88,7 @@ export default function ReportesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <Select value={period} onValueChange={setPeriod}>
+        <Select value={period} onValueChange={(v) => setPeriod(v ?? "")}>
           <SelectTrigger className="w-48 min-h-[44px]">
             <SelectValue />
           </SelectTrigger>
@@ -99,7 +99,7 @@ export default function ReportesPage() {
           </SelectContent>
         </Select>
 
-        <Select value={branchId} onValueChange={setBranchId}>
+        <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")}>
           <SelectTrigger className="w-48 min-h-[44px]">
             <SelectValue placeholder="Todas las sucursales" />
           </SelectTrigger>

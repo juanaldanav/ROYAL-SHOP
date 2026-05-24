@@ -118,7 +118,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {/* Branch selector — only for OWNER/MANAGER */}
           {isOwnerOrManager && branches.length > 1 && (
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+            <Select value={selectedBranch} onValueChange={(v) => setSelectedBranch(v ?? "all")}>
               <SelectTrigger className="w-44 min-h-[44px]">
                 <SelectValue />
               </SelectTrigger>

@@ -254,7 +254,7 @@ export default function CajerosPage() {
             </div>
             <div className="space-y-2">
               <Label>Rol</Label>
-              <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
+              <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v ?? "" }))}>
                 <SelectTrigger className="min-h-[44px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -267,7 +267,7 @@ export default function CajerosPage() {
             </div>
             <div className="space-y-2">
               <Label>Sucursal</Label>
-              <Select value={form.branchId} onValueChange={(v) => setForm((f) => ({ ...f, branchId: v === "none" ? "" : v }))}>
+              <Select value={form.branchId} onValueChange={(v) => setForm((f) => ({ ...f, branchId: (v === "none" || !v) ? "" : v }))}>
                 <SelectTrigger className="min-h-[44px]">
                   <SelectValue placeholder="Sin sucursal" />
                 </SelectTrigger>

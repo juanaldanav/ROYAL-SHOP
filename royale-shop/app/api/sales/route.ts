@@ -56,16 +56,15 @@ export async function POST(req: NextRequest) {
       discount = 0,
       customerName,
       customerPhone,
+      customerEmail,
     } = body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Se requiere al menos un artículo" }, { status: 400 })
     }
-
     if (!cashCutId) {
       return NextResponse.json({ error: "cashCutId es requerido" }, { status: 400 })
     }
-
     if (!paymentMethod) {
       return NextResponse.json({ error: "paymentMethod es requerido" }, { status: 400 })
     }
@@ -103,6 +102,7 @@ export async function POST(req: NextRequest) {
           change,
           customerName: customerName ?? null,
           customerPhone: customerPhone ?? null,
+          customerEmail: customerEmail ?? null,
           status: "COMPLETED",
           items: {
             create: items.map(
@@ -123,21 +123,26 @@ export async function POST(req: NextRequest) {
             ),
           },
         },
-        include: { items: true },
+        include: {
+          items: true,
+          branch: { select: { name: true } },
+          user: { select: { name: true } },
+        },
       })
 
+      // Decrement BranchStock per product
       for (const item of items) {
         if (item.productId) {
-          const product = await tx.product.findUnique({
-            where: { id: item.productId },
+          const bs = await tx.branchStock.findUnique({
+            where: { tenantId_branchId_productId: { tenantId, branchId, productId: item.productId } },
             select: { stock: true },
           })
-          if (product) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: Math.max(0, product.stock - item.quantity) },
-            })
-          }
+          const currentStock = bs?.stock ?? 0
+          await tx.branchStock.upsert({
+            where: { tenantId_branchId_productId: { tenantId, branchId, productId: item.productId } },
+            update: { stock: Math.max(0, currentStock - item.quantity) },
+            create: { tenantId, branchId, productId: item.productId, stock: 0 },
+          })
         }
       }
 

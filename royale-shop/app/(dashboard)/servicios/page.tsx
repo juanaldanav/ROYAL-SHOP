@@ -294,7 +294,7 @@ export default function ServiciosPage() {
               <Label>Categoría</Label>
               <Select
                 value={form.categoryId}
-                onValueChange={(v) => setForm({ ...form, categoryId: v === "none" ? "" : v })}
+                onValueChange={(v) => setForm({ ...form, categoryId: (v === "none" || !v) ? "" : v })}
               >
                 <SelectTrigger className="min-h-[44px]">
                   <SelectValue placeholder="Sin categoría" />

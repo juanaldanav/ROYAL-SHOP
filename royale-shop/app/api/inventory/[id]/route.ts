@@ -2,41 +2,45 @@ import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
-// PATCH /api/inventory/[id] — adjust stock for a product
+// PATCH /api/inventory/[id] — adjust BranchStock for a product
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { tenantId } = getSession(req)
-    const { id } = await params
+    const { tenantId, branchId: sessionBranchId } = getSession(req)
+    const { id: productId } = await params
     const body = await req.json()
+    const targetBranchId = body.branchId ?? sessionBranchId
 
-    const product = await db.product.findFirst({ where: { id, tenantId } })
+    const product = await db.product.findFirst({ where: { id: productId, tenantId } })
     if (!product) {
       return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 })
     }
 
-    const updates: { stock?: number; minStock?: number } = {}
-
-    if (body.stock !== undefined) {
-      updates.stock = Math.max(0, Number(body.stock))
-    }
-    if (body.delta !== undefined) {
-      // Relative adjustment: +5 or -3
-      updates.stock = Math.max(0, product.stock + Number(body.delta))
-    }
-    if (body.minStock !== undefined) {
-      updates.minStock = Math.max(0, Number(body.minStock))
-    }
-
-    const updated = await db.product.update({
-      where: { id },
-      data: updates,
-      select: { id: true, name: true, stock: true, minStock: true },
+    const existing = await db.branchStock.findUnique({
+      where: { tenantId_branchId_productId: { tenantId, branchId: targetBranchId, productId } },
     })
 
-    return NextResponse.json(updated)
+    const currentStock = existing?.stock ?? 0
+    const currentMinStock = existing?.minStock ?? 0
+
+    let newStock = currentStock
+    if (body.stock !== undefined) newStock = Math.max(0, Number(body.stock))
+    if (body.delta !== undefined) newStock = Math.max(0, currentStock + Number(body.delta))
+
+    const newMinStock = body.minStock !== undefined
+      ? Math.max(0, Number(body.minStock))
+      : currentMinStock
+
+    const updated = await db.branchStock.upsert({
+      where: { tenantId_branchId_productId: { tenantId, branchId: targetBranchId, productId } },
+      create: { tenantId, branchId: targetBranchId, productId, stock: newStock, minStock: newMinStock },
+      update: { stock: newStock, minStock: newMinStock },
+      select: { productId: true, stock: true, minStock: true, branchId: true },
+    })
+
+    return NextResponse.json({ id: productId, ...updated })
   } catch (error) {
     console.error("[PATCH /api/inventory/[id]]", error)
     return NextResponse.json({ error: "Error al ajustar stock" }, { status: 500 })

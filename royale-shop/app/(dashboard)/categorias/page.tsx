@@ -239,7 +239,7 @@ export default function CategoriasPage() {
               <Label>Tipo</Label>
               <Select
                 value={form.type}
-                onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, type: v ?? "" }))}
               >
                 <SelectTrigger className="min-h-[44px]">
                   <SelectValue />

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
-import { DEV_TENANT_ID } from "@/lib/constants"
+import { DEV_TENANT_ID, DEV_BRANCH_ID } from "@/lib/constants"
+import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
 interface CsvRow {
@@ -33,26 +34,19 @@ function parseCsv(text: string): CsvRow[] {
 }
 
 async function findOrCreateCategory(
+  tenantId: string,
   name: string
 ): Promise<string | null> {
   if (!name) return null
 
   const existing = await db.category.findFirst({
-    where: {
-      tenantId: DEV_TENANT_ID,
-      name,
-      type: "PRODUCT",
-    },
+    where: { tenantId, name, type: "PRODUCT" },
   })
 
   if (existing) return existing.id
 
   const created = await db.category.create({
-    data: {
-      tenantId: DEV_TENANT_ID,
-      name,
-      type: "PRODUCT",
-    },
+    data: { tenantId, name, type: "PRODUCT" },
   })
 
   return created.id
@@ -60,6 +54,8 @@ async function findOrCreateCategory(
 
 export async function POST(req: NextRequest) {
   try {
+    const { tenantId, branchId: sessionBranchId } = getSession(req)
+    const targetBranchId = sessionBranchId ?? DEV_BRANCH_ID
     const formData = await req.formData()
     const file = formData.get("file")
 
@@ -106,14 +102,14 @@ export async function POST(req: NextRequest) {
 
         // Resolve category
         const categoryId = row.categoryName
-          ? await findOrCreateCategory(row.categoryName)
+          ? await findOrCreateCategory(tenantId, row.categoryName)
           : null
 
         if (row.sku) {
           // Check if product with this SKU already exists for this tenant
           const existing = await db.product.findFirst({
             where: {
-              tenantId: DEV_TENANT_ID,
+              tenantId,
               sku: row.sku,
             },
           })
@@ -124,44 +120,49 @@ export async function POST(req: NextRequest) {
               data: {
                 price,
                 ...(cost !== null ? { cost } : {}),
-                stock,
-                minStock,
                 ...(categoryId ? { categoryId } : {}),
               },
             })
+            await db.branchStock.upsert({
+              where: { tenantId_branchId_productId: { tenantId, branchId: targetBranchId, productId: existing.id } },
+              update: { stock, minStock },
+              create: { tenantId, branchId: targetBranchId, productId: existing.id, stock, minStock },
+            })
             updated++
           } else {
-            await db.product.create({
+            const newProduct = await db.product.create({
               data: {
-                tenantId: DEV_TENANT_ID,
+                tenantId,
                 name: row.name,
                 sku: row.sku || null,
                 barcode: row.barcode || null,
                 price,
                 cost: cost ?? null,
-                stock,
-                minStock,
                 categoryId,
                 active: true,
               },
+            })
+            await db.branchStock.create({
+              data: { tenantId, branchId: targetBranchId, productId: newProduct.id, stock, minStock },
             })
             created++
           }
         } else {
           // No SKU — always create
-          await db.product.create({
+          const newProduct = await db.product.create({
             data: {
-              tenantId: DEV_TENANT_ID,
+              tenantId,
               name: row.name,
               sku: null,
               barcode: row.barcode || null,
               price,
               cost: cost ?? null,
-              stock,
-              minStock,
               categoryId,
               active: true,
             },
+          })
+          await db.branchStock.create({
+            data: { tenantId, branchId: targetBranchId, productId: newProduct.id, stock, minStock },
           })
           created++
         }

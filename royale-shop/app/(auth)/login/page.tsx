@@ -101,7 +101,7 @@ export default function LoginPage() {
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Branch selector */}
-        <Select value={branchId} onValueChange={setBranchId}>
+        <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")}>
           <SelectTrigger className="min-h-[44px]">
             <SelectValue placeholder="Selecciona sucursal" />
           </SelectTrigger>

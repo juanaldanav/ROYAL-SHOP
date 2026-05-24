@@ -24,27 +24,45 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { tenantId } = getSession(req)
   const body = await req.json()
-  const { name, sku, barcode, price, cost, stock, minStock, categoryId, description, imageUrl } = body
+  const { name, sku, barcode, price, cost, stock, minStock, categoryId, description, imageUrl, branchId } = body
 
   if (!name || !price) {
     return NextResponse.json({ error: "name y price son requeridos" }, { status: 400 })
   }
 
-  const product = await db.product.create({
-    data: {
-      tenantId,
-      name,
-      sku: sku || null,
-      barcode: barcode || null,
-      price,
-      cost: cost || null,
-      stock: stock ?? 0,
-      minStock: minStock ?? 0,
-      categoryId: categoryId || null,
-      description: description || null,
-      imageUrl: imageUrl || null,
-    },
-    include: { category: true },
+  const { branchId: sessionBranchId } = getSession(req)
+  const targetBranchId = branchId || sessionBranchId
+
+  const product = await db.$transaction(async (tx) => {
+    const p = await tx.product.create({
+      data: {
+        tenantId,
+        name,
+        sku: sku || null,
+        barcode: barcode || null,
+        price,
+        cost: cost || null,
+        categoryId: categoryId || null,
+        description: description || null,
+        imageUrl: imageUrl || null,
+      },
+      include: { category: true },
+    })
+
+    // Seed initial stock in the branch
+    if (stock !== undefined || minStock !== undefined) {
+      await tx.branchStock.create({
+        data: {
+          tenantId,
+          branchId: targetBranchId,
+          productId: p.id,
+          stock: stock ?? 0,
+          minStock: minStock ?? 0,
+        },
+      })
+    }
+
+    return p
   })
 
   return NextResponse.json(product, { status: 201 })

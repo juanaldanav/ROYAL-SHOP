@@ -1,0 +1,15 @@
+# Secrets and production config with credentials
+docker-compose.prod.yml
+
+# Logs
+*.log
+royale-shop/tmp_dev*.log
+royale-shop/tmp_dev_err*.log
+
+# Temp files
+*.tmp
+royale-shop/app/**/*.tmp.*
+
+# OS
+.DS_Store
+Thumbs.db
