@@ -90,7 +90,9 @@ export default function ReportesPage() {
       <div className="flex flex-wrap gap-3 mb-6">
         <Select value={period} onValueChange={(v) => setPeriod(v ?? "")}>
           <SelectTrigger className="w-48 min-h-[44px]">
-            <SelectValue />
+            <SelectValue>
+              {(v: string | null) => ({ today: "Hoy", week: "Últimos 7 días", month: "Últimos 30 días" }[v ?? ""] ?? "Período")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="today">Hoy</SelectItem>
@@ -101,7 +103,9 @@ export default function ReportesPage() {
 
         <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")}>
           <SelectTrigger className="w-48 min-h-[44px]">
-            <SelectValue placeholder="Todas las sucursales" />
+            <SelectValue>
+              {(v: string | null) => !v || v === "all" ? "Todas las sucursales" : (branches.find(b => b.id === v)?.name ?? v)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las sucursales</SelectItem>

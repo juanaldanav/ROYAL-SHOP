@@ -441,7 +441,9 @@ export default function TraspasosPage() {
               <Label>Sucursal destino</Label>
               <Select value={toBranchId} onValueChange={(v) => setToBranchId(v ?? "")}>
                 <SelectTrigger className="w-full min-h-[44px]">
-                  <SelectValue placeholder="Seleccionar sucursal..." />
+                  <SelectValue>
+                    {(v: string | null) => v ? (otherBranches.find(b => b.id === v)?.name ?? v) : "Seleccionar sucursal..."}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {otherBranches.map((b) => (
@@ -462,7 +464,9 @@ export default function TraspasosPage() {
               <div className="flex gap-2">
                 <Select value={selectedProductId} onValueChange={(v) => setSelectedProductId(v ?? "")}>
                   <SelectTrigger className="flex-1 min-h-[44px]">
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue>
+                      {(v: string | null) => v ? (products.find(p => p.id === v)?.name ?? v) : "Seleccionar..."}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {products.filter((p) => p.stock > 0).map((p) => (

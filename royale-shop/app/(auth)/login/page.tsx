@@ -103,7 +103,9 @@ export default function LoginPage() {
         {/* Branch selector */}
         <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")}>
           <SelectTrigger className="min-h-[44px]">
-            <SelectValue placeholder="Selecciona sucursal" />
+            <SelectValue>
+              {(v: string | null) => v ? (branches.find(b => b.id === v)?.name ?? v) : "Selecciona sucursal"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {branches.map((b) => (

@@ -120,7 +120,9 @@ export default function DashboardPage() {
           {isOwnerOrManager && branches.length > 1 && (
             <Select value={selectedBranch} onValueChange={(v) => setSelectedBranch(v ?? "all")}>
               <SelectTrigger className="w-44 min-h-[44px]">
-                <SelectValue />
+                <SelectValue>
+                  {(v: string | null) => !v || v === "all" ? "Todas las sucursales" : (branches.find(b => b.id === v)?.name ?? v)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las sucursales</SelectItem>

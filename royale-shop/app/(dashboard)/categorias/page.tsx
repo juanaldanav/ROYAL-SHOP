@@ -242,7 +242,9 @@ export default function CategoriasPage() {
                 onValueChange={(v) => setForm((f) => ({ ...f, type: v ?? "" }))}
               >
                 <SelectTrigger className="min-h-[44px]">
-                  <SelectValue />
+                  <SelectValue>
+                    {(v: string | null) => ({ PRODUCT: "Producto", SERVICE: "Servicio" }[v ?? ""] ?? "Selecciona tipo")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PRODUCT">Producto</SelectItem>

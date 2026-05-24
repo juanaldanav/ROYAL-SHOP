@@ -256,7 +256,9 @@ export default function CajerosPage() {
               <Label>Rol</Label>
               <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v ?? "" }))}>
                 <SelectTrigger className="min-h-[44px]">
-                  <SelectValue />
+                  <SelectValue>
+                    {(v: string | null) => ({ CASHIER: "Cajero", MANAGER: "Gerente", OWNER: "Dueño" }[v ?? ""] ?? "Selecciona rol")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CASHIER">Cajero</SelectItem>
@@ -269,7 +271,9 @@ export default function CajerosPage() {
               <Label>Sucursal</Label>
               <Select value={form.branchId} onValueChange={(v) => setForm((f) => ({ ...f, branchId: (v === "none" || !v) ? "" : v }))}>
                 <SelectTrigger className="min-h-[44px]">
-                  <SelectValue placeholder="Sin sucursal" />
+                  <SelectValue>
+                    {(v: string | null) => !v || v === "none" ? "Sin sucursal" : (branches.find(b => b.id === v)?.name ?? v)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin sucursal</SelectItem>
