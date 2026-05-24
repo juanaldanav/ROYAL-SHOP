@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── TENANT (multitenant ligero) ──────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  phone     String?  // WhatsApp business number
+  logoUrl   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches   Branch[]
+  users      User[]
+  categories Category[]
+  products   Product[]
+  services   Service[]
+  sales      Sale[]
+  cashCuts   CashCut[]
+}
+
+// ─── BRANCH (sucursal) ────────────────────────────────────────────────────────
+
+model Branch {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  address   String?
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  users    User[]
+  sales    Sale[]
+  cashCuts CashCut[]
+}
+
+// ─── USER ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  branchId  String?
+  email     String   @unique
+  name      String
+  role      UserRole @default(CASHIER)
+  pin       String?  // 4-digit PIN para login rápido en POS
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  branch   Branch?   @relation(fields: [branchId], references: [id])
+  sales    Sale[]
+  cashCuts CashCut[]
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  CASHIER
+}
+
+// ─── CATEGORY ─────────────────────────────────────────────────────────────────
+
+model Category {
+  id        String       @id @default(cuid())
+  tenantId  String
+  name      String
+  type      CategoryType @default(PRODUCT)
+  sortOrder Int          @default(0)
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  products Product[]
+  services Service[]
+
+  @@unique([tenantId, name, type])
+}
+
+enum CategoryType {
+  PRODUCT
+  SERVICE
+}
+
+// ─── PRODUCT (joyería, accesorios, arracadas, etc.) ──────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  categoryId  String?
+  sku         String?
+  barcode     String?
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  cost        Decimal? @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  minStock    Int      @default(0)
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  category  Category?  @relation(fields: [categoryId], references: [id])
+  saleItems SaleItem[]
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
+  @@index([tenantId, active])
+}
+
+// ─── SERVICE (perforaciones / piercings) ──────────────────────────────────────
+
+model Service {
+  id          String   @id @default(cuid())
+  tenantId    String
+  categoryId  String?
+  name        String   // e.g. "Perforación Nariz", "Expansión Oído"
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  duration    Int?     // minutos estimados
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  category  Category?  @relation(fields: [categoryId], references: [id])
+  saleItems SaleItem[]
+
+  @@index([tenantId, active])
+}
+
+// ─── SALE (venta) ─────────────────────────────────────────────────────────────
+
+model Sale {
+  id        String        @id @default(cuid())
+  tenantId  String
+  branchId  String
+  userId    String
+  cashCutId String?
+
+  // Montos
+  subtotal  Decimal @db.Decimal(10, 2)
+  discount  Decimal @default(0) @db.Decimal(10, 2)
+  tax       Decimal @default(0) @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+
+  // Pago
+  paymentMethod PaymentMethod @default(CASH)
+  amountPaid    Decimal       @db.Decimal(10, 2)
+  change        Decimal       @default(0) @db.Decimal(10, 2)
+
+  // Cliente (para ticket WhatsApp)
+  customerName  String?
+  customerPhone String? // e.g. "526681234567"
+
+  status    SaleStatus @default(COMPLETED)
+  notes     String?
+  createdAt DateTime   @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  cashCut  CashCut?  @relation(fields: [cashCutId], references: [id])
+  items    SaleItem[]
+
+  @@index([tenantId, branchId, createdAt])
+  @@index([tenantId, cashCutId])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  MIXED
+}
+
+enum SaleStatus {
+  COMPLETED
+  REFUNDED
+  CANCELLED
+}
+
+// ─── SALE ITEM (renglón de venta) ────────────────────────────────────────────
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  productId String?
+  serviceId String?
+
+  // Snapshot inmutable al momento de venta
+  name      String
+  price     Decimal @db.Decimal(10, 2)
+  quantity  Int     @default(1)
+  subtotal  Decimal @db.Decimal(10, 2)
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+  service Service? @relation(fields: [serviceId], references: [id])
+}
+
+// ─── CASH CUT (corte de caja) ─────────────────────────────────────────────────
+
+model CashCut {
+  id        String   @id @default(cuid())
+  tenantId  String
+  branchId  String
+  userId    String
+  openedAt  DateTime @default(now())
+  closedAt  DateTime?
+
+  openingBalance Decimal  @db.Decimal(10, 2)
+  totalSales     Decimal? @db.Decimal(10, 2) // calculado al cerrar
+  expectedCash   Decimal? @db.Decimal(10, 2)
+  countedCash    Decimal? @db.Decimal(10, 2)
+  difference     Decimal? @db.Decimal(10, 2) // countedCash - expectedCash
+
+  status CashCutStatus @default(OPEN)
+  notes  String?
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  branch Branch  @relation(fields: [branchId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+  sales  Sale[]
+
+  @@index([tenantId, branchId, status])
+}
+
+enum CashCutStatus {
+  OPEN
+  CLOSED
+}
