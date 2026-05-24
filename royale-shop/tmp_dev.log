@@ -1,0 +1,208 @@
+
+> royale-shop@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.2.0.2:3000
+- Environments: .env
+✓ Ready in 1511ms
+
+⨯ ./lib/db.ts:1:1
+Module not found: Can't resolve '@/app/generated/prisma'
+[31m[1m>[0m [90m1 |[0m [36mimport[0m { [33mPrismaClient[0m } [36mfrom[0m [32m"@/app/generated/prisma"[0m
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m2 |[0m [36mimport[0m { [33mPrismaPg[0m } [36mfrom[0m [32m"@prisma/adapter-pg"[0m
+  [90m3 |[0m
+  [90m4 |[0m [36mfunction[0m createPrismaClient() {
+
+Import map: aliased to relative './app/generated/prisma' inside of [project]/
+
+
+Import trace:
+  App Route:
+    ./lib/db.ts
+    ./app/api/seed/route.ts
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+ POST /api/seed 500 in 2.3s (next.js: 2.1s, application-code: 269ms)
+ POST /api/seed 200 in 2.9s (next.js: 456ms, application-code: 2.4s)
+○ Compiling / ...
+ GET / 307 in 4.0s (next.js: 3.7s, application-code: 288ms)
+ GET /dashboard 200 in 1113ms (next.js: 805ms, application-code: 308ms)
+ GET /dashboard 200 in 104ms (next.js: 9ms, application-code: 95ms)
+ GET /productos 200 in 1731ms (next.js: 1520ms, application-code: 211ms)
+ GET /servicios 200 in 1113ms (next.js: 970ms, application-code: 142ms)
+ GET /pos 200 in 666ms (next.js: 604ms, application-code: 62ms)
+ GET / 307 in 737ms (next.js: 137ms, application-code: 600ms)
+ GET /dashboard 200 in 316ms (next.js: 38ms, application-code: 278ms)
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/dashboard" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head headCacheNode={{rsc:{...}, ...}}>
+                    <__next_viewport_boundary__>
+                    <MetadataWrapper>
+                      <div
++                       hidden={true}
+-                       hidden={null}
+-                       id="heurio-app"
+-                       className="heurio-app"
+-                       version="2.5.01.13"
+                      >
+                        <__next_metadata_boundary__>
++                         <Suspense name="Next.Metadata">
+-                         <div className="heurio-overlay">
+                    ...
+                  ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at throwOnHydrationMismatch (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:3318:56)
+    at updateSuspenseComponent (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:6299:99)
+    at beginWork (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:6762:24)
+    at runWithFiberInDEV (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:965:74)
+    at performUnitOfWork (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:9555:97)
+    at workLoopConcurrentByScheduler (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:9551:58)
+    at renderRootConcurrent (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:9534:71)
+    at performWorkOnRoot (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:9061:150)
+    at performWorkOnRootViaSchedulerTask (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_react-dom_058-ah~._.js:10255:9)
+    at MessagePort.performWorkUntilDeadline (file://D:/lighthouse bot/royale-shop/.next/dev/static/chunks/node_modules_next_dist_compiled_0rpq4pf._.js:2647:64)
+    at Suspense (<anonymous>)
+ GET /productos 200 in 94ms (next.js: 27ms, application-code: 67ms)
+ GET /api/categories?type=PRODUCT 200 in 1220ms (next.js: 393ms, application-code: 827ms)
+ GET /api/categories?type=PRODUCT 200 in 140ms (next.js: 5ms, application-code: 135ms)
+ GET /api/products 200 in 1466ms (next.js: 549ms, application-code: 917ms)
+ GET /api/products 200 in 279ms (next.js: 12ms, application-code: 267ms)
+ GET /servicios 200 in 70ms (next.js: 20ms, application-code: 49ms)
+ GET /api/categories?type=SERVICE 200 in 137ms (next.js: 8ms, application-code: 129ms)
+ GET /api/categories?type=SERVICE 200 in 175ms (next.js: 6ms, application-code: 169ms)
+ GET /api/services 200 in 540ms (next.js: 303ms, application-code: 237ms)
+ GET /api/services 200 in 254ms (next.js: 10ms, application-code: 243ms)
+ GET /ventas 200 in 1091ms (next.js: 987ms, application-code: 104ms)
+ GET /categorias 200 in 1579ms (next.js: 1316ms, application-code: 264ms)
+ GET /cortes 200 in 1129ms (next.js: 1039ms, application-code: 91ms)
+ GET /dashboard 200 in 102ms (next.js: 8ms, application-code: 93ms)
+ GET /productos 200 in 91ms (next.js: 6ms, application-code: 85ms)
+ GET /api/categories?type=PRODUCT 200 in 685ms (next.js: 12ms, application-code: 673ms)
+ GET /api/categories?type=PRODUCT 200 in 147ms (next.js: 10ms, application-code: 136ms)
+ GET /api/products 200 in 934ms (next.js: 38ms, application-code: 895ms)
+ GET /api/products 200 in 242ms (next.js: 7ms, application-code: 234ms)
+ GET /servicios 200 in 88ms (next.js: 7ms, application-code: 81ms)
+ GET /api/categories?type=SERVICE 200 in 187ms (next.js: 19ms, application-code: 169ms)
+ GET /api/services 200 in 275ms (next.js: 8ms, application-code: 268ms)
+ GET /api/categories?type=SERVICE 200 in 166ms (next.js: 7ms, application-code: 159ms)
+ GET /api/services 200 in 295ms (next.js: 6ms, application-code: 289ms)
+ GET /categorias 200 in 63ms (next.js: 6ms, application-code: 57ms)
+ GET /api/categories 200 in 136ms (next.js: 8ms, application-code: 128ms)
+ GET /api/categories 200 in 132ms (next.js: 8ms, application-code: 123ms)
+ GET /ventas 200 in 59ms (next.js: 6ms, application-code: 54ms)
+ GET /cortes 200 in 90ms (next.js: 6ms, application-code: 84ms)
+ GET /pos 200 in 134ms (next.js: 52ms, application-code: 82ms)
+ GET /categorias 200 in 87ms (next.js: 7ms, application-code: 80ms)
+ GET /api/categories 200 in 655ms (next.js: 8ms, application-code: 647ms)
+ GET /api/categories 200 in 142ms (next.js: 10ms, application-code: 132ms)
+ GET /servicios 200 in 81ms (next.js: 8ms, application-code: 73ms)
+ GET /api/services 200 in 267ms (next.js: 11ms, application-code: 256ms)
+ GET /productos 200 in 70ms (next.js: 8ms, application-code: 62ms)
+ GET /api/services 200 in 329ms (next.js: 6ms, application-code: 322ms)
+ GET /api/categories?type=SERVICE 200 in 971ms (next.js: 30ms, application-code: 941ms)
+ GET /dashboard 200 in 82ms (next.js: 6ms, application-code: 76ms)
+ GET /api/categories?type=SERVICE 200 in 255ms (next.js: 10ms, application-code: 245ms)
+ GET /api/categories?type=PRODUCT 200 in 1017ms (next.js: 29ms, application-code: 989ms)
+ GET /api/products 200 in 1110ms (next.js: 10ms, application-code: 1101ms)
+ GET /api/categories?type=PRODUCT 200 in 189ms (next.js: 7ms, application-code: 181ms)
+ GET /productos 200 in 78ms (next.js: 6ms, application-code: 72ms)
+ GET /api/categories?type=PRODUCT 200 in 135ms (next.js: 6ms, application-code: 129ms)
+ GET /api/products 200 in 397ms (next.js: 7ms, application-code: 390ms)
+ GET /api/categories?type=PRODUCT 200 in 170ms (next.js: 8ms, application-code: 162ms)
+ GET /api/products 200 in 304ms (next.js: 8ms, application-code: 297ms)
+ GET /api/products 200 in 239ms (next.js: 7ms, application-code: 232ms)
+ GET /servicios 200 in 89ms (next.js: 6ms, application-code: 84ms)
+ GET /api/categories?type=SERVICE 200 in 740ms (next.js: 15ms, application-code: 725ms)
+ GET /api/services 200 in 904ms (next.js: 14ms, application-code: 889ms)
+ GET /api/categories?type=SERVICE 200 in 203ms (next.js: 12ms, application-code: 191ms)
+ GET /categorias 200 in 80ms (next.js: 7ms, application-code: 72ms)
+ GET /api/services 200 in 336ms (next.js: 12ms, application-code: 324ms)
+ GET /api/categories 200 in 158ms (next.js: 8ms, application-code: 150ms)
+ GET /api/categories 200 in 159ms (next.js: 13ms, application-code: 146ms)
+ GET /ventas 200 in 84ms (next.js: 8ms, application-code: 77ms)
+ GET /cortes 200 in 70ms (next.js: 5ms, application-code: 65ms)
+✓ Compiled in 147ms
+ GET /cortes 200 in 682ms (next.js: 207ms, application-code: 476ms)
+ GET /cortes 200 in 360ms (next.js: 11ms, application-code: 348ms)
+ GET /cortes 200 in 412ms (next.js: 97ms, application-code: 315ms)
+ GET /cortes 200 in 416ms (next.js: 8ms, application-code: 408ms)
+ GET /cortes 200 in 418ms (next.js: 156ms, application-code: 262ms)
+ GET /cortes 200 in 421ms (next.js: 54ms, application-code: 368ms)
+ GET /cortes 200 in 221ms (next.js: 16ms, application-code: 205ms)
+ GET /cortes 200 in 102ms (next.js: 7ms, application-code: 94ms)
+ GET /cortes 200 in 47ms (next.js: 5ms, application-code: 42ms)
+✓ Compiled in 573ms
+ GET /cortes 200 in 646ms (next.js: 304ms, application-code: 342ms)
+ GET /cortes 200 in 316ms (next.js: 55ms, application-code: 261ms)
+ GET /cortes 200 in 975ms (next.js: 241ms, application-code: 734ms)
+ GET /cortes 200 in 174ms (next.js: 104ms, application-code: 70ms)
+ GET /cortes 200 in 175ms (next.js: 56ms, application-code: 119ms)
+ GET /cortes 200 in 177ms (next.js: 11ms, application-code: 166ms)
+ GET /cortes 200 in 329ms (next.js: 8ms, application-code: 322ms)
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+✓ Compiled in 209ms
+ GET /cortes 200 in 467ms (next.js: 18ms, application-code: 449ms)
+ GET /cortes 200 in 389ms (next.js: 8ms, application-code: 381ms)
+ GET /cortes 200 in 455ms (next.js: 11ms, application-code: 444ms)
+ GET /cortes 200 in 464ms (next.js: 76ms, application-code: 388ms)
+ GET /cortes 200 in 465ms (next.js: 152ms, application-code: 313ms)
+ GET /cortes 200 in 470ms (next.js: 229ms, application-code: 241ms)
+ GET /cortes 200 in 475ms (next.js: 10ms, application-code: 465ms)
+ GET /cortes 200 in 408ms (next.js: 8ms, application-code: 400ms)
+ GET /cortes 200 in 453ms (next.js: 14ms, application-code: 439ms)
+ GET /cortes 200 in 453ms (next.js: 79ms, application-code: 375ms)
+ GET /cortes 200 in 387ms (next.js: 84ms, application-code: 303ms)
+ GET /cortes 200 in 316ms (next.js: 76ms, application-code: 240ms)
+ GET /cortes 200 in 479ms (next.js: 9ms, application-code: 470ms)
+ GET /cortes 200 in 412ms (next.js: 8ms, application-code: 404ms)
+ GET /cortes 200 in 517ms (next.js: 12ms, application-code: 506ms)
+ GET /cortes 200 in 439ms (next.js: 13ms, application-code: 426ms)
+ GET /cortes 200 in 441ms (next.js: 87ms, application-code: 353ms)
+ GET /cortes 200 in 439ms (next.js: 159ms, application-code: 280ms)
+ GET /cortes 200 in 397ms (next.js: 11ms, application-code: 386ms)
+ GET /cortes 200 in 274ms (next.js: 7ms, application-code: 267ms)
+ GET /cortes 200 in 378ms (next.js: 13ms, application-code: 365ms)
+ GET /cortes 200 in 328ms (next.js: 8ms, application-code: 320ms)
+ GET /cortes 200 in 330ms (next.js: 49ms, application-code: 281ms)
+ GET /cortes 200 in 330ms (next.js: 91ms, application-code: 239ms)
+ GET /cortes 200 in 485ms (next.js: 7ms, application-code: 477ms)
+ GET /cortes 200 in 414ms (next.js: 9ms, application-code: 405ms)
+ GET /cortes 200 in 480ms (next.js: 14ms, application-code: 466ms)
+ GET /cortes 200 in 398ms (next.js: 25ms, application-code: 372ms)
+ GET /cortes 200 in 396ms (next.js: 158ms, application-code: 238ms)
+ GET /cortes 200 in 399ms (next.js: 87ms, application-code: 312ms)
+ GET /cortes 200 in 169ms (next.js: 9ms, application-code: 160ms)
+ GET /cortes 200 in 94ms (next.js: 17ms, application-code: 77ms)
+⚠ Found a change in next.config.ts. Restarting the server to apply the changes...
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.2.0.2:3000
+- Environments: .env
+✓ Ready in 1416ms
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
