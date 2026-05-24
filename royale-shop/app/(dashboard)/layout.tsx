@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect } from "react"
 import {
   LayoutDashboard,
   Package,
@@ -12,11 +13,18 @@ import {
   Gem,
   Menu,
   X,
+  BarChart2,
+  Store,
+  Users,
+  TrendingUp,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { useSession } from "@/contexts/session-context"
+import { toast } from "sonner"
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -25,6 +33,10 @@ const nav = [
   { href: "/categorias", label: "Categorías", icon: Tag },
   { href: "/ventas", label: "Ventas", icon: ShoppingCart },
   { href: "/cortes", label: "Cortes de Caja", icon: Receipt },
+  { href: "/inventario", label: "Inventario", icon: BarChart2 },
+  { href: "/reportes", label: "Reportes", icon: TrendingUp },
+  { href: "/sucursales", label: "Sucursales", icon: Store },
+  { href: "/cajeros", label: "Cajeros", icon: Users },
 ]
 
 const pageTitles: Record<string, string> = {
@@ -34,6 +46,10 @@ const pageTitles: Record<string, string> = {
   "/categorias": "Categorías",
   "/ventas": "Ventas",
   "/cortes": "Cortes de Caja",
+  "/inventario": "Inventario",
+  "/reportes": "Reportes",
+  "/sucursales": "Sucursales",
+  "/cajeros": "Cajeros",
 }
 
 function NavLinks({ onSelect }: { onSelect?: () => void }) {
@@ -62,8 +78,26 @@ function NavLinks({ onSelect }: { onSelect?: () => void }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
+  const { user, loaded, logout } = useSession()
   const title = pageTitles[pathname] ?? "Royale Shop"
+
+  // Redirect to login if no session
+  useEffect(() => {
+    if (loaded && !user) {
+      router.replace("/login")
+    }
+  }, [loaded, user, router])
+
+  function handleLogout() {
+    logout()
+    toast.success("Sesión cerrada")
+    router.replace("/login")
+  }
+
+  // Show nothing while loading session to avoid flash
+  if (!loaded) return null
 
   return (
     <div className="flex flex-col min-h-screen bg-muted/40">
@@ -88,13 +122,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-sm text-muted-foreground hidden sm:inline truncate">{title}</span>
         </div>
 
-        {/* POS shortcut */}
-        <Link href="/pos">
-          <Button size="sm" className="h-9 px-3 shrink-0 text-sm">
-            <ShoppingCart className="size-4 mr-1.5" />
-            <span className="hidden sm:inline">POS</span>
+        {/* Right actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* User info (sm+) */}
+          {user && (
+            <span className="text-xs text-muted-foreground hidden sm:block truncate max-w-[120px]">
+              {user.name} · {user.branchName}
+            </span>
+          )}
+
+          {/* POS shortcut */}
+          <Link href="/pos">
+            <Button size="sm" className="h-9 px-3 shrink-0 text-sm">
+              <ShoppingCart className="size-4 mr-1.5" />
+              <span className="hidden sm:inline">POS</span>
+            </Button>
+          </Link>
+
+          {/* Logout */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 shrink-0"
+            onClick={handleLogout}
+            aria-label="Cerrar sesión"
+          >
+            <LogOut className="size-4" />
           </Button>
-        </Link>
+        </div>
       </header>
 
       {/* ── Drawer Navigation ── */}
@@ -116,17 +171,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Button>
           </div>
 
+          {/* Session info in drawer */}
+          {user && (
+            <div className="px-5 py-3 border-b bg-muted/30">
+              <p className="text-sm font-medium truncate">{user.name}</p>
+              <p className="text-xs text-muted-foreground truncate">{user.branchName} · {user.role}</p>
+            </div>
+          )}
+
           {/* Nav links */}
           <NavLinks onSelect={() => setOpen(false)} />
 
-          {/* Divider + POS button */}
-          <div className="px-4 py-4 border-t mt-auto">
+          {/* Divider + POS + Logout */}
+          <div className="px-4 py-4 border-t mt-auto space-y-2">
             <Link href="/pos" onClick={() => setOpen(false)}>
               <Button className="w-full h-12 text-base" variant="default">
                 <ShoppingCart className="size-5 mr-2" />
                 Ir al POS
               </Button>
             </Link>
+            <Button
+              variant="outline"
+              className="w-full h-10 text-sm"
+              onClick={() => { setOpen(false); handleLogout() }}
+            >
+              <LogOut className="size-4 mr-2" />
+              Cerrar Sesión
+            </Button>
           </div>
         </SheetContent>
       </Sheet>

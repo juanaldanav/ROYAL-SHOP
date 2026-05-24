@@ -150,6 +150,7 @@ model Sale {
   branchId  String
   userId    String
   cashCutId String?
+  folio     String?
 
   // Montos
   subtotal  Decimal @db.Decimal(10, 2)

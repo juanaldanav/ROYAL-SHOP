@@ -1,14 +1,15 @@
 import { db } from "@/lib/db"
-import { DEV_TENANT_ID } from "@/lib/constants"
+import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
+  const { tenantId } = getSession(req)
   const { searchParams } = new URL(req.url)
   const categoryId = searchParams.get("categoryId")
 
   const services = await db.service.findMany({
     where: {
-      tenantId: DEV_TENANT_ID,
+      tenantId,
       active: true,
       ...(categoryId ? { categoryId } : {}),
     },
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { tenantId } = getSession(req)
   const body = await req.json()
   const { name, price, description, duration, categoryId } = body
 
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const service = await db.service.create({
     data: {
-      tenantId: DEV_TENANT_ID,
+      tenantId,
       name,
       price,
       description: description || null,

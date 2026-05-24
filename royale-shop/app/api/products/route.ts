@@ -1,15 +1,16 @@
 import { db } from "@/lib/db"
-import { DEV_TENANT_ID } from "@/lib/constants"
+import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
+  const { tenantId } = getSession(req)
   const { searchParams } = new URL(req.url)
   const categoryId = searchParams.get("categoryId")
   const active = searchParams.get("active")
 
   const products = await db.product.findMany({
     where: {
-      tenantId: DEV_TENANT_ID,
+      tenantId,
       ...(categoryId ? { categoryId } : {}),
       ...(active !== null ? { active: active === "true" } : {}),
     },
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { tenantId } = getSession(req)
   const body = await req.json()
   const { name, sku, barcode, price, cost, stock, minStock, categoryId, description, imageUrl } = body
 
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const product = await db.product.create({
     data: {
-      tenantId: DEV_TENANT_ID,
+      tenantId,
       name,
       sku: sku || null,
       barcode: barcode || null,

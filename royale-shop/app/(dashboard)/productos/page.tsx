@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Plus, Pencil, ToggleLeft, ToggleRight, Search } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -63,14 +64,14 @@ export default function ProductosPage() {
   const [saving, setSaving] = useState(false)
 
   async function fetchProducts() {
-    const res = await fetch("/api/products")
+    const res = await apiFetch("/api/products")
     const data = await res.json()
     setProducts(data)
     setLoading(false)
   }
 
   async function fetchCategories() {
-    const res = await fetch("/api/categories?type=PRODUCT")
+    const res = await apiFetch("/api/categories?type=PRODUCT")
     setCategories(await res.json())
   }
 
@@ -123,14 +124,14 @@ export default function ProductosPage() {
       }
 
       if (editing) {
-        await fetch(`/api/products/${editing.id}`, {
+        await apiFetch(`/api/products/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
         toast.success("Producto actualizado")
       } else {
-        await fetch("/api/products", {
+        await apiFetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

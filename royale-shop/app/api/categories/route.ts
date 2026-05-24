@@ -1,15 +1,17 @@
 import { db } from "@/lib/db"
-import { DEV_TENANT_ID } from "@/lib/constants"
+import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
+  const { tenantId } = getSession(req)
   const { searchParams } = new URL(req.url)
   const type = searchParams.get("type")
+  const includeInactive = searchParams.get("includeInactive") === "true"
 
   const categories = await db.category.findMany({
     where: {
-      tenantId: DEV_TENANT_ID,
-      active: true,
+      tenantId,
+      ...(!includeInactive ? { active: true } : {}),
       ...(type ? { type: type as "PRODUCT" | "SERVICE" } : {}),
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -19,17 +21,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { tenantId } = getSession(req)
   const body = await req.json()
   const { name, type } = body
 
   if (!name) return NextResponse.json({ error: "name requerido" }, { status: 400 })
 
   const category = await db.category.create({
-    data: {
-      tenantId: DEV_TENANT_ID,
-      name,
-      type: type ?? "PRODUCT",
-    },
+    data: { tenantId, name, type: type ?? "PRODUCT" },
   })
 
   return NextResponse.json(category, { status: 201 })

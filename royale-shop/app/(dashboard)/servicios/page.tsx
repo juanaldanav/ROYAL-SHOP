@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Plus, Pencil, ToggleLeft, ToggleRight } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -55,14 +56,14 @@ export default function ServiciosPage() {
   const [saving, setSaving] = useState(false)
 
   async function fetchServices() {
-    const res = await fetch("/api/services")
+    const res = await apiFetch("/api/services")
     const data = await res.json()
     setServices(data)
     setLoading(false)
   }
 
   async function fetchCategories() {
-    const res = await fetch("/api/categories?type=SERVICE")
+    const res = await apiFetch("/api/categories?type=SERVICE")
     setCategories(await res.json())
   }
 
@@ -107,14 +108,14 @@ export default function ServiciosPage() {
       }
 
       if (editing) {
-        await fetch(`/api/services/${editing.id}`, {
+        await apiFetch(`/api/services/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
         toast.success("Servicio actualizado")
       } else {
-        await fetch("/api/services", {
+        await apiFetch("/api/services", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -132,7 +133,7 @@ export default function ServiciosPage() {
   }
 
   async function toggleActive(s: Service) {
-    await fetch(`/api/services/${s.id}`, {
+    await apiFetch(`/api/services/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !s.active }),
