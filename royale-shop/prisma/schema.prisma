@@ -231,9 +231,10 @@ model SaleItem {
   serviceId String?
 
   name     String
-  price    Decimal @db.Decimal(10, 2)
-  quantity Int     @default(1)
-  subtotal Decimal @db.Decimal(10, 2)
+  price    Decimal  @db.Decimal(10, 2)
+  cost     Decimal? @db.Decimal(10, 2)
+  quantity Int      @default(1)
+  subtotal Decimal  @db.Decimal(10, 2)
 
   sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])

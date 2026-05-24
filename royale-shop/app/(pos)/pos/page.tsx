@@ -475,7 +475,7 @@ export default function POSPage() {
                 <span className="line-clamp-2 text-sm font-medium leading-snug pr-10">
                   {item.name}
                 </span>
-                <span className="mt-1 text-base font-bold text-primary">
+                <span className="mt-1 text-base font-bold text-[var(--rs-gold)]">
                   {formatMXN(item.price)}
                 </span>
               </button>
@@ -614,7 +614,7 @@ export default function POSPage() {
 
                 {/* Cobrar */}
                 <Button
-                  className="w-full min-h-[52px] text-base font-semibold"
+                  className="w-full min-h-[52px] text-base font-bold bg-[#0A0A0A] text-white hover:opacity-85"
                   onClick={openPayment}
                   disabled={cart.length === 0 || !activeCashCut}
                 >

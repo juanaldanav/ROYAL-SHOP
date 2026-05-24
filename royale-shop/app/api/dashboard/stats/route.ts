@@ -2,6 +2,13 @@ import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
+function calcProfit(items: { price: unknown; cost: unknown; quantity: number }[]): number {
+  return items.reduce(
+    (s, i) => s + (Number(i.price) - Number(i.cost ?? 0)) * i.quantity,
+    0
+  )
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { tenantId, branchId: sessionBranchId } = getSession(req)
@@ -31,7 +38,17 @@ export async function GET(req: NextRequest) {
       ...(!allBranches ? { branchId } : {}),
     }
 
-    const [todayAgg, weekAgg, monthAgg, recentSales] = await Promise.all([
+    const itemSelect = { price: true, cost: true, quantity: true } as const
+
+    const [
+      todayAgg,
+      weekAgg,
+      monthAgg,
+      recentSales,
+      todayItems,
+      weekItems,
+      monthItems,
+    ] = await Promise.all([
       db.sale.aggregate({
         where: { ...baseWhere, createdAt: { gte: startOfToday, lte: now } },
         _count: true,
@@ -57,12 +74,36 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
+      db.saleItem.findMany({
+        where: { sale: { ...baseWhere, createdAt: { gte: startOfToday, lte: now } } },
+        select: itemSelect,
+      }),
+      db.saleItem.findMany({
+        where: { sale: { ...baseWhere, createdAt: { gte: startOfWeek, lte: now } } },
+        select: itemSelect,
+      }),
+      db.saleItem.findMany({
+        where: { sale: { ...baseWhere, createdAt: { gte: startOfMonth, lte: now } } },
+        select: itemSelect,
+      }),
     ])
 
     return NextResponse.json({
-      today: { count: todayAgg._count, total: Number(todayAgg._sum.total ?? 0) },
-      week: { count: weekAgg._count, total: Number(weekAgg._sum.total ?? 0) },
-      month: { count: monthAgg._count, total: Number(monthAgg._sum.total ?? 0) },
+      today: {
+        count: todayAgg._count,
+        total: Number(todayAgg._sum.total ?? 0),
+        profit: calcProfit(todayItems),
+      },
+      week: {
+        count: weekAgg._count,
+        total: Number(weekAgg._sum.total ?? 0),
+        profit: calcProfit(weekItems),
+      },
+      month: {
+        count: monthAgg._count,
+        total: Number(monthAgg._sum.total ?? 0),
+        profit: calcProfit(monthItems),
+      },
       recentSales,
     })
   } catch (error) {

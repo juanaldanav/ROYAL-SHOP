@@ -105,6 +105,18 @@ export async function POST(req: NextRequest) {
     const sale = await db.$transaction(async (tx) => {
       const folio = generateFolio()
 
+      // Pre-fetch product costs inside transaction for snapshot
+      const productCosts: Record<string, number | null> = {}
+      for (const item of items) {
+        if (item.productId) {
+          const p = await tx.product.findUnique({
+            where: { id: item.productId },
+            select: { cost: true },
+          })
+          productCosts[item.productId] = p?.cost ? Number(p.cost) : null
+        }
+      }
+
       const newSale = await tx.sale.create({
         data: {
           tenantId,
@@ -141,6 +153,7 @@ export async function POST(req: NextRequest) {
                 serviceId: item.serviceId ?? null,
                 name: item.name,
                 price: item.price,
+                cost: item.productId ? (productCosts[item.productId] ?? null) : null,
                 quantity: item.quantity,
                 subtotal: item.price * item.quantity,
               })

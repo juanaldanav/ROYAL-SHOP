@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Gem, Delete } from "lucide-react"
+import { Delete } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -93,8 +94,8 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center pb-2">
-        <div className="flex justify-center mb-2">
-          <Gem className="size-8 text-primary" />
+        <div className="flex justify-center mb-3">
+          <Image src="/logo.jpg" alt="Royal Shop" width={110} height={110} className="rounded-full object-cover" />
         </div>
         <CardTitle className="text-xl">Royale Shop</CardTitle>
         <p className="text-sm text-muted-foreground">Ingresa tu PIN para continuar</p>

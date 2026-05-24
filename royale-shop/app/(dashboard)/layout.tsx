@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
@@ -19,7 +20,6 @@ import {
   ArrowLeftRight,
   MoreHorizontal,
   X,
-  ScanBarcode,
   Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -79,12 +79,15 @@ function SidebarLinks({ onSelect }: { onSelect?: () => void }) {
           className={cn(
             "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
             pathname === href
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-[var(--rs-gold-subtle)] text-foreground font-semibold"
+              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           )}
         >
           <Icon className="size-4 shrink-0" />
           {label}
+          {pathname === href && (
+            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--rs-gold)]" />
+          )}
         </Link>
       ))}
     </nav>
@@ -142,9 +145,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-muted/40">
 
       {/* ── Desktop Sidebar (md+) ── */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 fixed left-0 top-0 h-screen border-r bg-background z-30">
-        <div className="flex items-center gap-2 px-5 py-4 border-b">
-          <Gem className="size-5 text-primary shrink-0" />
+      <aside className="hidden md:flex flex-col w-60 shrink-0 fixed left-0 top-0 h-screen bg-white z-30">
+        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E8E8E8]">
+          <Image src="/logo.jpg" alt="Royal Shop" width={34} height={34} className="rounded-full object-cover shrink-0" />
           <span className="font-bold text-base">Royale Shop</span>
         </div>
 
@@ -157,16 +160,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <SidebarLinks />
 
-        <div className="px-3 py-3 border-t space-y-1.5 mt-auto">
+        {/* Transición blanco → negro */}
+        <div className="h-10 relative shrink-0 bg-white overflow-hidden">
+          <svg viewBox="0 0 240 42" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full h-full">
+            <path d="M0,42 L0,36 C60,36 60,6 120,6 C180,6 180,36 240,36 L240,42 Z" fill="#0A0A0A"/>
+          </svg>
+        </div>
+
+        {/* Sección negra */}
+        <div className="bg-[#0A0A0A] px-3 pb-5 pt-1 space-y-2 shrink-0">
           <Link href="/pos">
-            <Button className="w-full h-10 text-sm" variant="default">
+            <Button className="w-full h-10 text-sm font-bold bg-[var(--rs-gold)] text-black hover:opacity-85">
               <ShoppingCart className="size-4 mr-2" />
               Ir al POS
             </Button>
           </Link>
           <Button
             variant="ghost"
-            className="w-full h-9 text-sm text-muted-foreground justify-start"
+            className="w-full h-9 text-xs text-white/40 hover:text-white/70 justify-start"
             onClick={handleLogout}
           >
             <LogOut className="size-4 mr-2" />
@@ -180,7 +191,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* ── Header ── */}
         <header className="sticky top-0 z-20 flex items-center gap-3 px-4 h-14 bg-background border-b shadow-sm">
-          <Gem className="size-5 text-primary shrink-0" />
+          <Image src="/logo.jpg" alt="Royal Shop" width={30} height={30} className="rounded-full object-cover shrink-0" />
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span className="font-bold text-base truncate">Royale Shop</span>
             <span className="text-muted-foreground hidden sm:inline text-sm">·</span>
@@ -343,7 +354,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <SheetContent side="bottom" className="h-auto rounded-t-2xl p-0">
           <div className="flex items-center justify-between px-5 py-4 border-b">
             <div className="flex items-center gap-2">
-              <Gem className="size-4 text-primary" />
+              <Image src="/logo.jpg" alt="Royal Shop" width={24} height={24} className="rounded-full object-cover" />
               <SheetTitle className="font-bold text-base">Menú</SheetTitle>
             </div>
             <Button variant="ghost" size="icon" className="size-8" onClick={() => setMoreOpen(false)}>

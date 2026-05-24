@@ -1,13 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { Plus, Pencil, ToggleLeft, ToggleRight, Search } from "lucide-react"
+import {
+  Plus,
+  Pencil,
+  ToggleLeft,
+  ToggleRight,
+  Search,
+  Package,
+  Upload,
+} from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useSession } from "@/contexts/session-context"
+import { formatMXN } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
@@ -22,10 +34,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { formatMXN } from "@/lib/format"
 
-type Category = { id: string; name: string }
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type BranchStockEntry = {
+  branchId: string
+  branch: { id: string; name: string }
+  stock: number
+  minStock: number
+}
+
 type Product = {
   id: string
   name: string
@@ -33,13 +51,38 @@ type Product = {
   barcode: string | null
   price: string
   cost: string | null
-  stock: number
-  minStock: number
+  imageUrl: string | null
   categoryId: string | null
-  category: Category | null
+  category: { id: string; name: string } | null
+  branchStocks: BranchStockEntry[]
   description: string | null
   active: boolean
 }
+
+type Branch = { id: string; name: string }
+type Category = { id: string; name: string }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function marginPct(price: string, cost: string | null): number | null {
+  const p = parseFloat(price)
+  const c = cost ? parseFloat(cost) : null
+  if (!c || c <= 0 || p <= 0) return null
+  return ((p - c) / p) * 100
+}
+
+function MarginBadge({ price, cost }: { price: string; cost: string | null }) {
+  const pct = marginPct(price, cost)
+  if (pct === null) return <span className="text-muted-foreground">—</span>
+  const pctStr = pct.toFixed(0) + "%"
+  if (pct >= 40)
+    return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">{pctStr}</Badge>
+  if (pct >= 20)
+    return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">{pctStr}</Badge>
+  return <Badge className="bg-red-100 text-red-800 border-red-200">{pctStr}</Badge>
+}
+
+// ─── Empty form ───────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
   name: "",
@@ -51,17 +94,34 @@ const EMPTY_FORM = {
   minStock: "0",
   categoryId: "",
   description: "",
+  imageUrl: "",
+  targetBranch: "all",
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ProductosPage() {
+  const { user } = useSession()
+  const isOwnerOrManager = user?.role === "OWNER" || user?.role === "MANAGER"
+
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [stockFilter, setStockFilter] = useState<string>("") // branch ID to show stock for
+  const [newCatName, setNewCatName] = useState("")
+  const [addingCat, setAddingCat] = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Load ────────────────────────────────────────────────────────────────────
 
   async function fetchProducts() {
     const res = await apiFetch("/api/products")
@@ -75,34 +135,105 @@ export default function ProductosPage() {
     setCategories(await res.json())
   }
 
+  async function fetchBranches() {
+    const res = await apiFetch("/api/branches")
+    const data: Branch[] = await res.json()
+    setBranches(data)
+    if (data.length > 0 && !stockFilter) setStockFilter(data[0].id)
+  }
+
   useEffect(() => {
     fetchProducts()
     fetchCategories()
-  }, [])
+    if (isOwnerOrManager) fetchBranches()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwnerOrManager])
+
+  // ── Dialog helpers ──────────────────────────────────────────────────────────
 
   function openCreate() {
     setEditing(null)
     setForm(EMPTY_FORM)
+    setImagePreview(null)
     setOpen(true)
   }
 
   function openEdit(p: Product) {
     setEditing(p)
+    const firstStock = p.branchStocks[0]
     setForm({
       name: p.name,
       sku: p.sku ?? "",
       barcode: p.barcode ?? "",
       price: String(p.price),
       cost: p.cost ? String(p.cost) : "",
-      stock: String(p.stock),
-      minStock: String(p.minStock),
+      stock: firstStock ? String(firstStock.stock) : "0",
+      minStock: firstStock ? String(firstStock.minStock) : "0",
       categoryId: p.categoryId ?? "",
       description: p.description ?? "",
+      imageUrl: p.imageUrl ?? "",
+      targetBranch: firstStock?.branchId ?? "all",
     })
+    setImagePreview(p.imageUrl ?? null)
     setOpen(true)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // ── Image upload ─────────────────────────────────────────────────────────────
+
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await apiFetch("/api/products/upload", { method: "POST", body: fd })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? "Error al subir imagen")
+        return
+      }
+      const { url } = await res.json()
+      setForm((f) => ({ ...f, imageUrl: url }))
+      setImagePreview(url)
+    } catch {
+      toast.error("Error al subir imagen")
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  // ── Category inline create ───────────────────────────────────────────────────
+
+  async function handleAddCategory() {
+    if (!newCatName.trim()) return
+    setAddingCat(true)
+    try {
+      const res = await apiFetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCatName.trim(), type: "PRODUCT" }),
+      })
+      if (!res.ok) {
+        toast.error("No se pudo crear la categoría")
+        return
+      }
+      const cat: Category = await res.json()
+      setCategories((prev) => [...prev, cat])
+      setForm((f) => ({ ...f, categoryId: cat.id }))
+      setNewCatName("")
+      toast.success("Categoría creada")
+    } catch {
+      toast.error("Error al crear categoría")
+    } finally {
+      setAddingCat(false)
+    }
+  }
+
+  // ── Save ─────────────────────────────────────────────────────────────────────
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name || !form.price) {
       toast.error("Nombre y precio son requeridos")
@@ -121,6 +252,9 @@ export default function ProductosPage() {
         minStock: parseInt(form.minStock) || 0,
         categoryId: form.categoryId || null,
         description: form.description || null,
+        imageUrl: form.imageUrl || null,
+        allBranches: form.targetBranch === "all",
+        branchId: form.targetBranch !== "all" ? form.targetBranch : undefined,
       }
 
       if (editing) {
@@ -148,8 +282,10 @@ export default function ProductosPage() {
     }
   }
 
+  // ── Toggle active ────────────────────────────────────────────────────────────
+
   async function toggleActive(p: Product) {
-    await fetch(`/api/products/${p.id}`, {
+    await apiFetch(`/api/products/${p.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !p.active }),
@@ -158,11 +294,35 @@ export default function ProductosPage() {
     fetchProducts()
   }
 
+  // ── Filter ───────────────────────────────────────────────────────────────────
+
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku ?? "").toLowerCase().includes(search.toLowerCase())
+      (p.sku ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.barcode ?? "").toLowerCase().includes(search.toLowerCase())
   )
+
+  // ── Stock helper ─────────────────────────────────────────────────────────────
+
+  function getStock(p: Product): string {
+    if (p.branchStocks.length === 0) return "—"
+    const entry = stockFilter
+      ? p.branchStocks.find((bs) => bs.branchId === stockFilter)
+      : p.branchStocks[0]
+    if (!entry) return "—"
+    return String(entry.stock)
+  }
+
+  function getMinStock(p: Product): number {
+    if (p.branchStocks.length === 0) return 0
+    const entry = stockFilter
+      ? p.branchStocks.find((bs) => bs.branchId === stockFilter)
+      : p.branchStocks[0]
+    return entry?.minStock ?? 0
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <div>
@@ -178,15 +338,41 @@ export default function ProductosPage() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Buscar por nombre o SKU..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Search + Branch filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            className="pl-9 min-h-[44px]"
+            placeholder="Buscar por nombre, SKU o código de barras..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        {isOwnerOrManager && branches.length > 1 && (
+          <Select
+            value={stockFilter || "all"}
+            onValueChange={(v) => setStockFilter(!v || v === "all" ? "" : v)}
+          >
+            <SelectTrigger className="w-48 min-h-[44px]">
+              <SelectValue>
+                {(v: string | null) =>
+                  !v || v === "all"
+                    ? "Todas las sucursales"
+                    : (branches.find((b) => b.id === v)?.name ?? v)
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las sucursales</SelectItem>
+              {branches.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Table */}
@@ -195,77 +381,145 @@ export default function ProductosPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="text-left px-4 py-3 font-medium w-12">Img</th>
                 <th className="text-left px-4 py-3 font-medium">Nombre</th>
-                <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">SKU</th>
-                <th className="text-right px-4 py-3 font-medium">Precio</th>
+                <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">SKU / Código</th>
+                <th className="text-right px-4 py-3 font-medium">Precio / Costo</th>
+                <th className="text-center px-4 py-3 font-medium hidden md:table-cell">Margen</th>
                 <th className="text-right px-4 py-3 font-medium hidden md:table-cell">Stock</th>
                 <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Categoría</th>
                 <th className="text-center px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3" />
+                <th className="px-4 py-3 w-20" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
-                    Cargando...
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="px-4 py-3"><Skeleton className="size-10 rounded" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-40" /></td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
+                    <td className="px-4 py-3 text-center hidden md:table-cell"><Skeleton className="h-5 w-12 mx-auto" /></td>
+                    <td className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="h-4 w-8 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden lg:table-cell"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-3 text-center"><Skeleton className="h-5 w-16 mx-auto" /></td>
+                    <td className="px-4 py-3" />
+                  </tr>
+                ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={9} className="text-center py-12 text-muted-foreground">
                     Sin productos. Crea el primero.
                   </td>
                 </tr>
               ) : (
-                filtered.map((p) => (
-                  <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium">{p.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                      {p.sku ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">
-                      {formatMXN(parseFloat(p.price))}
-                    </td>
-                    <td className="px-4 py-3 text-right hidden md:table-cell">
-                      <span className={p.stock <= p.minStock ? "text-destructive font-medium" : ""}>
-                        {p.stock}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
-                      {p.category?.name ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge variant={p.active ? "default" : "secondary"}>
-                        {p.active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          onClick={() => openEdit(p)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground"
-                          onClick={() => toggleActive(p)}
-                        >
-                          {p.active ? (
-                            <ToggleRight className="size-4" />
-                          ) : (
-                            <ToggleLeft className="size-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((p) => {
+                  const stockVal = getStock(p)
+                  const minStockVal = getMinStock(p)
+                  const stockNum = stockVal === "—" ? null : parseInt(stockVal)
+                  const lowStock = stockNum !== null && stockNum <= minStockVal
+
+                  return (
+                    <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
+                      {/* Imagen */}
+                      <td className="px-4 py-3">
+                        {p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.imageUrl}
+                            alt={p.name}
+                            width={40}
+                            height={40}
+                            className="size-10 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="size-10 rounded bg-muted flex items-center justify-center">
+                            <Package className="size-5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Nombre */}
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{p.name}</p>
+                        {p.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">{p.description}</p>
+                        )}
+                      </td>
+
+                      {/* SKU / Barcode */}
+                      <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                        <div className="text-xs">
+                          {p.sku ? <span>SKU: {p.sku}</span> : null}
+                          {p.sku && p.barcode ? <br /> : null}
+                          {p.barcode ? <span>{p.barcode}</span> : null}
+                          {!p.sku && !p.barcode ? "—" : null}
+                        </div>
+                      </td>
+
+                      {/* Precio / Costo */}
+                      <td className="px-4 py-3 text-right">
+                        <p className="font-mono font-medium">{formatMXN(parseFloat(p.price))}</p>
+                        {p.cost && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {formatMXN(parseFloat(p.cost))}
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Margen */}
+                      <td className="px-4 py-3 text-center hidden md:table-cell">
+                        <MarginBadge price={p.price} cost={p.cost} />
+                      </td>
+
+                      {/* Stock */}
+                      <td className="px-4 py-3 text-right hidden md:table-cell">
+                        <span className={lowStock ? "text-destructive font-medium" : ""}>
+                          {stockVal}
+                        </span>
+                      </td>
+
+                      {/* Categoría */}
+                      <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
+                        {p.category?.name ?? "—"}
+                      </td>
+
+                      {/* Estado */}
+                      <td className="px-4 py-3 text-center">
+                        <Badge variant={p.active ? "default" : "secondary"}>
+                          {p.active ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </td>
+
+                      {/* Acciones */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            onClick={() => openEdit(p)}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground"
+                            onClick={() => toggleActive(p)}
+                          >
+                            {p.active ? (
+                              <ToggleRight className="size-4" />
+                            ) : (
+                              <ToggleLeft className="size-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -278,7 +532,47 @@ export default function ProductosPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Editar Producto" : "Nuevo Producto"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+
+          <form onSubmit={handleSave} className="space-y-4">
+            {/* 1. Imagen */}
+            <div className="space-y-2">
+              <Label>Imagen del producto</Label>
+              <div className="flex items-center gap-3">
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imagePreview}
+                    alt="Vista previa"
+                    width={80}
+                    height={80}
+                    className="size-20 rounded object-cover border"
+                  />
+                ) : (
+                  <div className="size-20 rounded border bg-muted flex items-center justify-center">
+                    <Package className="size-8 text-muted-foreground" />
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-[44px]"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="size-4 mr-2" />
+                  {uploading ? "Subiendo..." : imagePreview ? "Cambiar" : "Subir imagen"}
+                </Button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageSelect}
+              />
+            </div>
+
+            {/* 2. Nombre */}
             <div className="space-y-2">
               <Label htmlFor="name">
                 Nombre <span className="text-destructive">*</span>
@@ -292,10 +586,11 @@ export default function ProductosPage() {
               />
             </div>
 
+            {/* 3. Precio / Costo */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="price">
-                  Precio <span className="text-destructive">*</span>
+                  Precio de venta <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="price"
@@ -309,7 +604,7 @@ export default function ProductosPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cost">Costo</Label>
+                <Label htmlFor="cost">Precio de compra (costo)</Label>
                 <Input
                   id="cost"
                   type="number"
@@ -322,7 +617,17 @@ export default function ProductosPage() {
                 />
               </div>
             </div>
+            {/* Live margin preview */}
+            {form.price && form.cost && parseFloat(form.cost) > 0 && parseFloat(form.price) > 0 && (
+              <p className="text-xs text-muted-foreground -mt-2">
+                Margen:{" "}
+                <span className="font-medium">
+                  {(((parseFloat(form.price) - parseFloat(form.cost)) / parseFloat(form.price)) * 100).toFixed(1)}%
+                </span>
+              </p>
+            )}
 
+            {/* 4. SKU / Barcode */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="sku">SKU</Label>
@@ -346,9 +651,10 @@ export default function ProductosPage() {
               </div>
             </div>
 
+            {/* 5. Stock / MinStock */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="stock">Stock actual</Label>
+                <Label htmlFor="stock">Stock inicial</Label>
                 <Input
                   id="stock"
                   type="number"
@@ -371,35 +677,98 @@ export default function ProductosPage() {
               </div>
             </div>
 
+            {/* 6. Sucursal — solo OWNER/MANAGER */}
+            {isOwnerOrManager && branches.length > 0 && (
+              <div className="space-y-2">
+                <Label>Sucursal</Label>
+                <Select
+                  value={form.targetBranch}
+                  onValueChange={(v) => setForm({ ...form, targetBranch: v ?? "all" })}
+                >
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue>
+                      {(v: string | null) =>
+                        !v || v === "all"
+                          ? "Todas las sucursales"
+                          : (branches.find((b) => b.id === v)?.name ?? v)
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las sucursales</SelectItem>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* 7. Categoría + inline create */}
             <div className="space-y-2">
               <Label>Categoría</Label>
-              <Select
-                value={form.categoryId}
-                onValueChange={(v) => setForm({ ...form, categoryId: (v === "none" || !v) ? "" : v })}
-              >
-                <SelectTrigger className="min-h-[44px]">
-                  <SelectValue>
-                    {(v: string | null) => !v || v === "none" ? "Sin categoría" : (categories.find(c => c.id === v)?.name ?? v)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin categoría</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select
+                  value={form.categoryId || "none"}
+                  onValueChange={(v) =>
+                    setForm({ ...form, categoryId: !v || v === "none" ? "" : v })
+                  }
+                >
+                  <SelectTrigger className="min-h-[44px] flex-1">
+                    <SelectValue>
+                      {(v: string | null) =>
+                        !v || v === "none"
+                          ? "Sin categoría"
+                          : (categories.find((c) => c.id === v)?.name ?? v)
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin categoría</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Inline add category */}
+                <div className="flex gap-1">
+                  <Input
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    placeholder="Nueva..."
+                    className="min-h-[44px] w-28"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleAddCategory()
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-[44px] px-3"
+                    disabled={addingCat || !newCatName.trim()}
+                    onClick={handleAddCategory}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+              </div>
             </div>
 
+            {/* 8. Descripción */}
             <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
+              <Label htmlFor="description">Descripción (opcional)</Label>
               <Input
                 id="description"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Descripción opcional"
+                placeholder="Descripción breve del producto"
                 className="min-h-[44px]"
               />
             </div>

@@ -30,9 +30,9 @@ type Sale = {
   branch?: { name: string }
 }
 type Stats = {
-  today: { count: number; total: number }
-  week: { count: number; total: number }
-  month: { count: number; total: number }
+  today: { count: number; total: number; profit: number }
+  week: { count: number; total: number; profit: number }
+  month: { count: number; total: number; profit: number }
   recentSales: Sale[]
 }
 type Branch = { id: string; name: string }
@@ -172,18 +172,21 @@ export default function DashboardPage() {
               label="Hoy"
               count={stats?.today.count ?? 0}
               total={stats?.today.total ?? 0}
+              profit={stats?.today.profit}
             />
             <MetricCard
               icon={<Receipt className="size-5 text-primary" />}
               label="Esta Semana"
               count={stats?.week.count ?? 0}
               total={stats?.week.total ?? 0}
+              profit={stats?.week.profit}
             />
             <MetricCard
               icon={<TrendingUp className="size-5 text-primary" />}
               label="Este Mes"
               count={stats?.month.count ?? 0}
               total={stats?.month.total ?? 0}
+              profit={stats?.month.profit}
             />
           </>
         )}
@@ -259,11 +262,13 @@ function MetricCard({
   label,
   count,
   total,
+  profit,
 }: {
   icon: React.ReactNode
   label: string
   count: number
   total: number
+  profit?: number
 }) {
   return (
     <Card className="p-5">
@@ -273,6 +278,11 @@ function MetricCard({
       </div>
       <p className="text-3xl font-bold mb-1">{count}</p>
       <p className="text-base text-muted-foreground font-mono">{formatMXN(total)}</p>
+      {profit !== undefined && (
+        <p className="text-xs text-emerald-600 font-medium mt-0.5">
+          Utilidad: {formatMXN(profit)}
+        </p>
+      )}
     </Card>
   )
 }

@@ -14,7 +14,14 @@ export async function GET(req: NextRequest) {
       ...(categoryId ? { categoryId } : {}),
       ...(active !== null ? { active: active === "true" } : {}),
     },
-    include: { category: true },
+    include: {
+      category: true,
+      branchStocks: {
+        include: {
+          branch: { select: { id: true, name: true } },
+        },
+      },
+    },
     orderBy: { name: "asc" },
   })
 
@@ -24,7 +31,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { tenantId } = getSession(req)
   const body = await req.json()
-  const { name, sku, barcode, price, cost, stock, minStock, categoryId, description, imageUrl, branchId } = body
+  const {
+    name,
+    sku,
+    barcode,
+    price,
+    cost,
+    stock,
+    minStock,
+    categoryId,
+    description,
+    imageUrl,
+    branchId,
+    allBranches,
+  } = body
 
   if (!name || !price) {
     return NextResponse.json({ error: "name y price son requeridos" }, { status: 400 })
@@ -46,11 +66,35 @@ export async function POST(req: NextRequest) {
         description: description || null,
         imageUrl: imageUrl || null,
       },
-      include: { category: true },
+      include: {
+        category: true,
+        branchStocks: {
+          include: {
+            branch: { select: { id: true, name: true } },
+          },
+        },
+      },
     })
 
-    // Seed initial stock in the branch
-    if (stock !== undefined || minStock !== undefined) {
+    if (allBranches === true) {
+      // Create a branchStock entry for every active branch in this tenant
+      const branches = await db.branch.findMany({
+        where: { tenantId, active: true },
+      })
+      if (branches.length > 0) {
+        await tx.branchStock.createMany({
+          data: branches.map((b) => ({
+            tenantId,
+            branchId: b.id,
+            productId: p.id,
+            stock: stock ?? 0,
+            minStock: minStock ?? 0,
+          })),
+          skipDuplicates: true,
+        })
+      }
+    } else if (stock !== undefined || minStock !== undefined) {
+      // Single branch stock
       await tx.branchStock.create({
         data: {
           tenantId,
