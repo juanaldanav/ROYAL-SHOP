@@ -1,0 +1,11 @@
+name,sku,barcode,price,cost,stock,minStock,categoryName
+Arete Dormilon Acero,ARE-001,7501234567890,150,80,10,2,Aretes
+Arête Argolla Plata 925,ARE-002,7501234567891,280,140,5,1,Aretes
+Piercing Labret Titanio 1.2mm,PIE-001,7501234567892,120,55,20,5,Piercings
+Piercing Nostril Acero,PIE-002,7501234567893,90,40,15,3,Piercings
+Collar Corazon Plata,COL-001,7501234567894,350,160,8,2,Collares
+Collar Infinito Acero Dorado,COL-002,7501234567895,220,100,6,2,Collares
+Pulsera Eslabón Plata,PUL-001,7501234567896,180,85,12,3,Pulseras
+Anillo Solitario Acero,ANI-001,7501234567897,95,45,20,4,Anillos
+Anillo Ajustable Plata 925,ANI-002,7501234567898,160,75,10,2,Anillos
+Pendiente Gota Cristal,PEN-001,7501234567899,130,60,8,2,Aretes

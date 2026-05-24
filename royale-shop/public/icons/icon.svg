@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#18181b"/>
+  <!-- Diamond / Gem shape -->
+  <path d="M160 180 L200 130 L312 130 L352 180 L256 370 Z" fill="white"/>
+  <path d="M160 180 L256 220 L352 180" stroke="#18181b" stroke-width="4" fill="none"/>
+  <path d="M200 130 L256 220" stroke="#18181b" stroke-width="4"/>
+  <path d="M312 130 L256 220" stroke="#18181b" stroke-width="4"/>
+  <!-- Text -->
+  <text x="256" y="430" font-family="system-ui, sans-serif" font-size="48" font-weight="700" fill="white" text-anchor="middle">POS</text>
+</svg>
