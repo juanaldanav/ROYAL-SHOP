@@ -67,6 +67,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // @react-pdf/renderer runs server-side only — keep out of client bundle
+  serverExternalPackages: ["@react-pdf/renderer"],
   async headers() {
     return [
       {
