@@ -45,6 +45,7 @@ export type PDFSale = {
   transferAmount?: string | number
   user?: { name: string } | null
   branch?: { name: string } | null
+  notes?: string | null
 }
 
 export type PDFTenant = {
@@ -266,6 +267,16 @@ function TicketPDFDocument({
             </View>
           )}
         </View>
+
+        {sale.notes ? (
+          <>
+            <View style={s.dash} />
+            <View>
+              <Text style={s.label}>Nota</Text>
+              <Text>{sale.notes}</Text>
+            </View>
+          </>
+        ) : null}
 
         <View style={s.dash} />
         <Text style={s.footer}>¡Gracias por su compra!</Text>

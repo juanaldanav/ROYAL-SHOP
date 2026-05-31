@@ -31,6 +31,7 @@ import { formatMXN, generateFolio, cartSubtotal } from "@/lib/format"
 import { apiFetch } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -125,6 +126,7 @@ function POSContent() {
   const [discount, setDiscount] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
   const [customerEmail, setCustomerEmail] = useState("")
+  const [notes, setNotes] = useState("")
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH")
@@ -261,6 +263,7 @@ function POSContent() {
     setDiscount("")
     setCustomerPhone("")
     setCustomerEmail("")
+    setNotes("")
     setAmountPaid("")
     setMixedCash("")
     setMixedSecond("")
@@ -323,6 +326,7 @@ function POSContent() {
         customerName: undefined,
         customerPhone: customerPhone || undefined,
         customerEmail: customerEmail || undefined,
+        notes: notes.trim() || undefined,
         // Desglose mixto
         cashAmount:     paymentMethod === "MIXED" ? mixedCashNum : undefined,
         cardAmount:     paymentMethod === "MIXED" && mixedSecondMethod === "CARD" ? mixedSecondNum : undefined,
@@ -371,6 +375,7 @@ function POSContent() {
     discountAmount,
     customerPhone,
     customerEmail,
+    notes,
     mixedCashNum,
     mixedSecondNum,
     mixedSecondMethod,
@@ -794,6 +799,17 @@ function POSContent() {
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     className="h-9"
                     inputMode="email"
+                  />
+                </div>
+
+                {/* Nota (opcional) — ej. para documentar descuentos */}
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground">Nota (opcional)</label>
+                  <Textarea
+                    placeholder="Ej. descuento por mayoreo, detalle del cliente…"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="min-h-[60px] text-sm"
                   />
                 </div>
 

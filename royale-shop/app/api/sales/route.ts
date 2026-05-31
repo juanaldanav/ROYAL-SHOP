@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       customerName,
       customerPhone,
       customerEmail,
+      notes,
       // Pago mixto — solo cuando paymentMethod === "MIXED"
       cashAmount = 0,
       cardAmount = 0,
@@ -154,6 +155,7 @@ export async function POST(req: NextRequest) {
           customerName: customerName ?? null,
           customerPhone: customerPhone ?? null,
           customerEmail: customerEmail ?? null,
+          notes: notes?.trim() ? notes.trim() : null,
           status: "COMPLETED",
           items: {
             create: items.map(

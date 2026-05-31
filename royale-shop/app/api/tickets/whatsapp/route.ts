@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
           transferAmount: sale.transferAmount?.toString(),
           user: sale.user,
           branch: sale.branch,
+          notes: sale.notes,
         },
         {
           name: tenant.name,

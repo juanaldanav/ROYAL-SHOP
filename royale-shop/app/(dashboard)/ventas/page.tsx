@@ -54,6 +54,7 @@ type Sale = {
   transferAmount: string
   paymentMethod: "CASH" | "CARD" | "TRANSFER" | "MIXED"
   status: "COMPLETED" | "REFUNDED" | "CANCELLED"
+  notes: string | null
   items: SaleItem[]
   payments?: Payment[]
   user: { name: string } | null
@@ -221,6 +222,16 @@ function TicketView({ sale, tenant }: { sale: Sale; tenant?: TenantInfo | null }
           </>
         )}
       </div>
+
+      {sale.notes && (
+        <>
+          <div className="border-t border-dashed my-2" />
+          <div className="text-xs">
+            <p className="text-muted-foreground mb-0.5">Nota</p>
+            <p className="whitespace-pre-wrap">{sale.notes}</p>
+          </div>
+        </>
+      )}
 
       <div className="border-t border-dashed my-2" />
       <p className="text-center text-xs text-muted-foreground pb-1">
@@ -695,6 +706,13 @@ export default function VentasPage() {
                     </div>
                   )}
                 </div>
+
+                {detail.notes && (
+                  <div className="rounded-lg bg-muted/40 p-3 text-sm">
+                    <p className="text-xs text-muted-foreground mb-1">Nota</p>
+                    <p className="whitespace-pre-wrap">{detail.notes}</p>
+                  </div>
+                )}
 
                 {detail.status !== "CANCELLED" && (
                   <Button

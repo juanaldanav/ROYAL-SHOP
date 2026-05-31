@@ -74,6 +74,7 @@ export async function sendSaleTicketEmail(saleId: string, tenantId: string): Pro
           transferAmount: sale.transferAmount?.toString(),
           user: sale.user,
           branch: sale.branch,
+          notes: sale.notes,
         },
         { name: tenant.name, phone: tenant.phone, logoUrl: tenant.logoUrl }
       )
