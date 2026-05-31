@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,8 @@ type CutDetail = CashCut & {
   methodTotals: { CASH: number; CARD: number; TRANSFER: number }
   cashIn: number
   cashOut: number
+  totalRefunds: number
+  totalExpenses: number
   totalSalesLive: number
   expectedCashLive: number
 }
@@ -71,6 +74,12 @@ export default function CortesPage() {
   const [openDialog, setOpenDialog] = useState(false)
   const [openingBalance, setOpeningBalance] = useState("")
   const [opening, setOpening] = useState(false)
+
+  // Registrar salida de efectivo (EXPENSE)
+  const [expenseOpen, setExpenseOpen] = useState(false)
+  const [expenseAmount, setExpenseAmount] = useState("")
+  const [expenseReason, setExpenseReason] = useState("")
+  const [savingExpense, setSavingExpense] = useState(false)
 
   // Close corte dialog
   const [closeDialog, setCloseDialog] = useState<CashCut | null>(null)
@@ -130,6 +139,41 @@ export default function CortesPage() {
       toast.error("Error al abrir corte")
     } finally {
       setOpening(false)
+    }
+  }
+
+  async function handleRegisterExpense() {
+    if (!openCut) return
+    const amount = parseFloat(expenseAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("El monto debe ser mayor a 0")
+      return
+    }
+    if (!expenseReason.trim()) {
+      toast.error("La razón de la salida es obligatoria")
+      return
+    }
+    setSavingExpense(true)
+    try {
+      const res = await apiFetch("/api/cash-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cashCutId: openCut.id, amount, description: expenseReason.trim() }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? "Error al registrar la salida")
+        return
+      }
+      toast.success("Salida de efectivo registrada")
+      setExpenseOpen(false)
+      setExpenseAmount("")
+      setExpenseReason("")
+      fetchCuts()
+    } catch {
+      toast.error("Error al registrar la salida")
+    } finally {
+      setSavingExpense(false)
     }
   }
 
@@ -245,9 +289,18 @@ export default function CortesPage() {
                 <p className="text-xl font-semibold font-mono">{formatMXN(parseFloat(openCut.openingBalance))}</p>
               </div>
             </div>
-            <Button className="w-full min-h-[48px] mt-5" onClick={() => openCloseCutDialog(openCut)}>
-              Cerrar Turno
-            </Button>
+            <div className="grid grid-cols-2 gap-2 mt-5">
+              <Button
+                variant="outline"
+                className="min-h-[48px]"
+                onClick={() => { setExpenseAmount(""); setExpenseReason(""); setExpenseOpen(true) }}
+              >
+                Registrar salida
+              </Button>
+              <Button className="min-h-[48px]" onClick={() => openCloseCutDialog(openCut)}>
+                Cerrar Turno
+              </Button>
+            </div>
           </Card>
         ) : (
           <Card className="p-8 text-center">
@@ -507,6 +560,53 @@ export default function CortesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Registrar Salida de Efectivo (EXPENSE) ── */}
+      <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registrar salida de efectivo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="expenseAmount">Monto (MXN)</Label>
+              <Input
+                id="expenseAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="0.00"
+                value={expenseAmount}
+                onChange={(e) => setExpenseAmount(e.target.value)}
+                className="min-h-[44px]"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expenseReason">Razón (obligatoria)</Label>
+              <Textarea
+                id="expenseReason"
+                placeholder="Ej. compra de bolsas, pago a proveedor…"
+                value={expenseReason}
+                onChange={(e) => setExpenseReason(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="min-h-[44px]" onClick={() => setExpenseOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="min-h-[44px]"
+              onClick={handleRegisterExpense}
+              disabled={savingExpense || !expenseAmount || !expenseReason.trim()}
+            >
+              {savingExpense ? "Guardando..." : "Registrar salida"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Close Corte Dialog ── */}
       <Dialog
         open={!!closeDialog}
@@ -572,6 +672,18 @@ export default function CortesPage() {
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground pl-3">− Cambio devuelto</span>
                           <span className="font-mono text-muted-foreground">−{formatMXN(cutDetail.cashOut)}</span>
+                        </div>
+                      )}
+                      {cutDetail.totalExpenses > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground pl-3">− Salidas de efectivo</span>
+                          <span className="font-mono text-muted-foreground">−{formatMXN(cutDetail.totalExpenses)}</span>
+                        </div>
+                      )}
+                      {cutDetail.totalRefunds > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground pl-3">− Devoluciones</span>
+                          <span className="font-mono text-muted-foreground">−{formatMXN(cutDetail.totalRefunds)}</span>
                         </div>
                       )}
                     </>

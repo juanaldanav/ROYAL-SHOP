@@ -336,6 +336,7 @@ model CashMovement {
 
 enum CashMovementType {
   REFUND
+  EXPENSE
 }
 
 // ─── TRANSFER (traspaso de inventario entre sucursales) ───────────────────────

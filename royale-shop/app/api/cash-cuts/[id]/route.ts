@@ -54,21 +54,24 @@ export async function GET(
       }
     }
 
-    // Devoluciones en efectivo registradas en este corte
-    const refunds = await db.cashMovement.findMany({
-      where: { cashCutId: cashCut.id, tenantId, type: "REFUND" },
-      select: { amount: true },
+    // Movimientos de caja que sacan efectivo: devoluciones (REFUND) y salidas (EXPENSE)
+    const movements = await db.cashMovement.findMany({
+      where: { cashCutId: cashCut.id, tenantId, type: { in: ["REFUND", "EXPENSE"] } },
+      select: { type: true, amount: true },
     })
-    const totalRefunds = refunds.reduce((sum, m) => sum + Number(m.amount), 0)
+    const totalRefunds = movements.filter((m) => m.type === "REFUND").reduce((s, m) => s + Number(m.amount), 0)
+    const totalExpenses = movements.filter((m) => m.type === "EXPENSE").reduce((s, m) => s + Number(m.amount), 0)
 
     const openingBalance = Number(cashCut.openingBalance)
-    const expectedCashLive = openingBalance + cashIn - cashOut - totalRefunds
+    const expectedCashLive = openingBalance + cashIn - cashOut - totalRefunds - totalExpenses
 
     return NextResponse.json({
       ...cashCut,
       methodTotals,
       cashIn,
       cashOut,
+      totalRefunds,
+      totalExpenses,
       totalSalesLive: totalSales,
       expectedCashLive,
     })
@@ -125,8 +128,8 @@ export async function PATCH(
         },
       }),
       db.cashMovement.findMany({
-        where: { cashCutId: id, tenantId, type: "REFUND" },
-        select: { amount: true },
+        where: { cashCutId: id, tenantId, type: { in: ["REFUND", "EXPENSE"] } },
+        select: { type: true, amount: true },
       }),
     ])
 
@@ -158,12 +161,13 @@ export async function PATCH(
       }
     }
 
-    // Devoluciones en efectivo registradas en este corte (cancelaciones post-corte)
-    const totalRefunds = refundMovements.reduce((sum, m) => sum + Number(m.amount), 0)
+    // Movimientos que sacan efectivo del corte: devoluciones (REFUND) + salidas (EXPENSE)
+    const totalRefunds = refundMovements.filter((m) => m.type === "REFUND").reduce((s, m) => s + Number(m.amount), 0)
+    const totalExpenses = refundMovements.filter((m) => m.type === "EXPENSE").reduce((s, m) => s + Number(m.amount), 0)
 
     const openingBalance = Number(cashCut.openingBalance)
-    // Efectivo esperado = saldo inicial + efectivo recibido − cambio devuelto − devoluciones
-    const expectedCash = openingBalance + cashIn - cashOut - totalRefunds
+    // Efectivo esperado = saldo inicial + efectivo recibido − cambio devuelto − devoluciones − salidas
+    const expectedCash = openingBalance + cashIn - cashOut - totalRefunds - totalExpenses
     const difference = Number(countedCash) - expectedCash
     // Tarjeta esperada = solo pagos CARD (TRANSFER no genera voucher físico de terminal bancaria)
     const expectedCard = methodTotals.CARD
