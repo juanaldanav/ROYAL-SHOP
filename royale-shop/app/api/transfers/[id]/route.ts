@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(
@@ -40,6 +41,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await assertManagerOrOwner(req)
+  if (denied) return denied
+
   try {
     const { tenantId, userId } = getSession(req)
     const { id } = await params

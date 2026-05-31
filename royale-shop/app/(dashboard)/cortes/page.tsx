@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { AlertTriangle, RefreshCw } from "lucide-react"
@@ -29,9 +31,32 @@ type CashCut = {
   expectedCash: string | null
   countedCash: string | null
   difference: string | null
+  expectedCard: string | null
+  countedCard: string | null
+  cardDifference: string | null
   status: "OPEN" | "CLOSED"
   user: { name: string } | null
   _count: { sales: number }
+}
+
+type CutDetail = CashCut & {
+  methodTotals: { CASH: number; CARD: number; TRANSFER: number }
+  cashIn: number
+  cashOut: number
+  totalSalesLive: number
+  expectedCashLive: number
+}
+
+type CuadreStatus = "EXACTO" | "SOBRANTE" | "FALTANTE"
+type CloseResult = CashCut & {
+  cuadreStatus: CuadreStatus
+  cardCuadreStatus: CuadreStatus
+  difference: string
+  cardDifference: string
+  expectedCash: string
+  expectedCard: string
+  countedCash: string
+  countedCard: string
 }
 
 export default function CortesPage() {
@@ -46,7 +71,10 @@ export default function CortesPage() {
 
   // Close corte dialog
   const [closeDialog, setCloseDialog] = useState<CashCut | null>(null)
+  const [cutDetail, setCutDetail] = useState<CutDetail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
   const [countedCash, setCountedCash] = useState("")
+  const [countedCard, setCountedCard] = useState("")
   const [closing, setClosing] = useState(false)
 
   const openCut = cuts.find((c) => c.status === "OPEN") ?? null
@@ -102,10 +130,28 @@ export default function CortesPage() {
     }
   }
 
+  async function openCloseCutDialog(cut: CashCut) {
+    setCountedCash("")
+    setCountedCard("")
+    setCutDetail(null)
+    setCloseDialog(cut)
+    setLoadingDetail(true)
+    try {
+      const res = await apiFetch(`/api/cash-cuts/${cut.id}`)
+      if (res.ok) setCutDetail(await res.json())
+    } catch { /* non-critical */ } finally {
+      setLoadingDetail(false)
+    }
+  }
+
   async function handleCloseCut() {
     if (!closeDialog) return
-    if (!countedCash && countedCash !== "0") {
+    if (countedCash === "" || countedCash === undefined) {
       toast.error("Ingresa el efectivo contado")
+      return
+    }
+    if (countedCard === "" || countedCard === undefined) {
+      toast.error("Ingresa el conteo de tarjeta")
       return
     }
     setClosing(true)
@@ -113,7 +159,10 @@ export default function CortesPage() {
       const res = await apiFetch(`/api/cash-cuts/${closeDialog.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ countedCash: parseFloat(countedCash) }),
+        body: JSON.stringify({
+          countedCash: parseFloat(countedCash),
+          countedCard: parseFloat(countedCard),
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -123,6 +172,7 @@ export default function CortesPage() {
       toast.success("Corte cerrado")
       setCloseDialog(null)
       setCountedCash("")
+      setCountedCard("")
       fetchCuts()
     } catch {
       toast.error("Error al cerrar corte")
@@ -131,26 +181,8 @@ export default function CortesPage() {
     }
   }
 
-  // Live preview for the close dialog
-  const expectedCashPreview =
-    closeDialog
-      ? parseFloat(closeDialog.openingBalance) +
-        (closeDialog.expectedCash
-          ? parseFloat(closeDialog.expectedCash) - parseFloat(closeDialog.openingBalance)
-          : 0)
-      : 0
-
-  // If the cut is still open we don't have expectedCash yet — show opening balance only
-  const openingBalancePreview = closeDialog
-    ? parseFloat(closeDialog.openingBalance)
-    : 0
-
   const countedNum = parseFloat(countedCash) || 0
-  // For an OPEN cut, expected = openingBalance (we don't know sales yet from the cut object)
-  // The server calculates the real difference; we show an estimate here
-  const differencePreview = closeDialog?.expectedCash
-    ? countedNum - parseFloat(closeDialog.expectedCash)
-    : countedNum - openingBalancePreview
+  const countedCardNum = parseFloat(countedCard) || 0
 
   return (
     <div>
@@ -187,17 +219,17 @@ export default function CortesPage() {
       {/* Status Banner */}
       {!loading && (
         openCut ? (
-          <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800 px-4 py-3 mb-6 text-sm">
-            <span className="size-2 rounded-full bg-green-500 shrink-0" />
-            <span className="font-medium text-green-800 dark:text-green-300">
+          <div className="flex items-center gap-3 rounded-xl border border-[#E8E8E8] bg-white px-4 py-3 mb-6 text-sm">
+            <span className="size-2 rounded-full bg-[var(--rs-gold)] shrink-0" />
+            <span className="font-medium">
               Corte en curso desde{" "}
               <span className="font-semibold">{formatDateTime(openCut.openedAt)}</span>
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800 px-4 py-3 mb-6 text-sm">
-            <AlertTriangle className="size-4 text-yellow-600 dark:text-yellow-400 shrink-0" />
-            <span className="font-medium text-yellow-800 dark:text-yellow-300">
+          <div className="flex items-center gap-3 rounded-xl bg-[#0A0A0A] px-4 py-3 mb-6 text-sm">
+            <AlertTriangle className="size-4 text-[var(--rs-gold)] shrink-0" />
+            <span className="font-medium text-white/90">
               Sin corte abierto — las ventas no podrán registrarse hasta abrir un corte.
             </span>
           </div>
@@ -299,10 +331,7 @@ export default function CortesPage() {
                             size="sm"
                             variant="outline"
                             className="min-h-[44px]"
-                            onClick={() => {
-                              setCountedCash("")
-                              setCloseDialog(cut)
-                            }}
+                            onClick={() => openCloseCutDialog(cut)}
                           >
                             Cerrar Corte
                           </Button>
@@ -364,7 +393,7 @@ export default function CortesPage() {
       {/* ── Close Corte Dialog ── */}
       <Dialog
         open={!!closeDialog}
-        onOpenChange={(open) => { if (!open) setCloseDialog(null) }}
+        onOpenChange={(open) => { if (!open) { setCloseDialog(null); setCutDetail(null) } }}
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -372,6 +401,7 @@ export default function CortesPage() {
           </DialogHeader>
           {closeDialog && (
             <div className="space-y-4 py-2">
+              {/* Efectivo */}
               <div className="space-y-2">
                 <Label htmlFor="countedCash">Efectivo contado en caja (MXN)</Label>
                 <Input
@@ -387,55 +417,128 @@ export default function CortesPage() {
                 />
               </div>
 
+              {/* Tarjeta */}
+              <div className="space-y-2">
+                <Label htmlFor="countedCard">Vouchers de tarjeta contados (MXN)</Label>
+                <Input
+                  id="countedCard"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={countedCard}
+                  onChange={(e) => setCountedCard(e.target.value)}
+                  className="min-h-[44px]"
+                />
+              </div>
+
               <Separator />
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Saldo inicial</span>
-                  <span className="font-mono">
-                    {formatMXN(openingBalancePreview)}
-                  </span>
+              {loadingDetail ? (
+                <div className="space-y-2">
+                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-4 w-full" />)}
                 </div>
-                {closeDialog.expectedCash && (
+              ) : (
+                <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">Saldo inicial</span>
+                    <span className="font-mono">{formatMXN(parseFloat(closeDialog.openingBalance))}</span>
+                  </div>
+
+                  {cutDetail && (
+                    <>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground pl-3">+ Efectivo recibido</span>
+                        <span className="font-mono">{formatMXN(cutDetail.cashIn)}</span>
+                      </div>
+                      {cutDetail.cashOut > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground pl-3">− Cambio devuelto</span>
+                          <span className="font-mono text-muted-foreground">−{formatMXN(cutDetail.cashOut)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Efectivo summary */}
+                  <div className="flex justify-between font-medium">
                     <span className="text-muted-foreground">Efectivo esperado</span>
                     <span className="font-mono">
-                      {formatMXN(parseFloat(closeDialog.expectedCash))}
+                      {cutDetail ? formatMXN(cutDetail.expectedCashLive) : "—"}
                     </span>
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Contado</span>
-                  <span className="font-mono">{formatMXN(countedNum)}</span>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Contado efectivo</span>
+                    <span className="font-mono">{formatMXN(countedNum)}</span>
+                  </div>
+                  {cutDetail && (
+                    <div className="flex justify-between font-semibold">
+                      <span>Dif. efectivo</span>
+                      <span className={
+                        (countedNum - cutDetail.expectedCashLive) >= 0
+                          ? "text-green-600 dark:text-green-400 font-mono"
+                          : "text-destructive font-mono"
+                      }>
+                        {(() => {
+                          const d = countedNum - cutDetail.expectedCashLive
+                          return `${d >= 0 ? "+" : ""}${formatMXN(d)}`
+                        })()}
+                      </span>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  {/* Tarjeta summary */}
+                  {cutDetail && cutDetail.methodTotals.CARD > 0 && (
+                    <>
+                      <div className="flex justify-between font-medium">
+                        <span className="text-muted-foreground">Tarjeta esperada</span>
+                        <span className="font-mono">{formatMXN(cutDetail.methodTotals.CARD)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Contado tarjeta</span>
+                        <span className="font-mono">{formatMXN(countedCardNum)}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold">
+                        <span>Dif. tarjeta</span>
+                        <span className={
+                          (countedCardNum - cutDetail.methodTotals.CARD) >= 0
+                            ? "text-green-600 dark:text-green-400 font-mono"
+                            : "text-destructive font-mono"
+                        }>
+                          {(() => {
+                            const d = countedCardNum - cutDetail.methodTotals.CARD
+                            return `${d >= 0 ? "+" : ""}${formatMXN(d)}`
+                          })()}
+                        </span>
+                      </div>
+                      <Separator />
+                    </>
+                  )}
+
+                  {/* Transferencias (info only) */}
+                  {cutDetail && cutDetail.methodTotals.TRANSFER > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Transferencias (info)</span>
+                      <span className="font-mono">{formatMXN(cutDetail.methodTotals.TRANSFER)}</span>
+                    </div>
+                  )}
                 </div>
-                <Separator />
-                <div className="flex justify-between font-semibold">
-                  <span>Diferencia (estimada)</span>
-                  <span
-                    className={
-                      differencePreview >= 0
-                        ? "text-green-600 dark:text-green-400 font-mono"
-                        : "text-destructive font-mono"
-                    }
-                  >
-                    {differencePreview >= 0 ? "+" : ""}
-                    {formatMXN(differencePreview)}
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           )}
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setCloseDialog(null)}
+              onClick={() => { setCloseDialog(null); setCutDetail(null) }}
               className="min-h-[44px]"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleCloseCut}
-              disabled={closing}
+              disabled={closing || loadingDetail}
               className="min-h-[44px]"
             >
               {closing ? "Cerrando..." : "Cerrar Corte"}

@@ -22,6 +22,7 @@ type SessionCtx = {
   loaded: boolean
   login: (user: SessionUser) => void
   logout: () => void
+  switchBranch: (branchId: string, branchName: string) => void
 }
 
 const SessionContext = createContext<SessionCtx>({
@@ -29,6 +30,7 @@ const SessionContext = createContext<SessionCtx>({
   loaded: false,
   login: () => {},
   logout: () => {},
+  switchBranch: () => {},
 })
 
 const STORAGE_KEY = "royale_session"
@@ -55,8 +57,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY)
   }
 
+  function switchBranch(branchId: string, branchName: string) {
+    if (!user) return
+    const updated = { ...user, branchId, branchName }
+    setUser(updated)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+    // Force full reload so all API calls, useEffects, and cached data reflect the new branch
+    window.location.reload()
+  }
+
   return (
-    <SessionContext.Provider value={{ user, loaded, login, logout }}>
+    <SessionContext.Provider value={{ user, loaded, login, logout, switchBranch }}>
       {children}
     </SessionContext.Provider>
   )

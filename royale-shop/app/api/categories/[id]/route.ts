@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -7,6 +8,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { id } = await params
     const body = await req.json()
@@ -18,7 +21,7 @@ export async function PATCH(
     }
 
     const updated = await db.category.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         ...(name !== undefined ? { name } : {}),
         ...(type !== undefined ? { type } : {}),
@@ -39,6 +42,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { id } = await params
 
@@ -48,7 +53,7 @@ export async function DELETE(
     }
 
     // Soft delete — deactivate rather than destroy (products may reference it)
-    await db.category.update({ where: { id }, data: { active: false } })
+    await db.category.update({ where: { id, tenantId }, data: { active: false } })
 
     return NextResponse.json({ ok: true })
   } catch (error) {

@@ -1,9 +1,12 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Plus, Pencil, ToggleLeft, ToggleRight } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useOwnerGuard } from "@/lib/use-role-guard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -47,6 +50,7 @@ const EMPTY_FORM = {
 }
 
 export default function ServiciosPage() {
+  const { allowed } = useOwnerGuard()
   const [services, setServices] = useState<Service[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,6 +145,8 @@ export default function ServiciosPage() {
     toast.success(s.active ? "Servicio desactivado" : "Servicio activado")
     fetchServices()
   }
+
+  if (!allowed) return null
 
   return (
     <div>

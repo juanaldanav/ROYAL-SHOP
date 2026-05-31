@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
@@ -42,6 +43,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await assertManagerOrOwner(req)
+  if (denied) return denied
+
   try {
     const { tenantId, branchId, userId } = getSession(req)
     const body = await req.json()

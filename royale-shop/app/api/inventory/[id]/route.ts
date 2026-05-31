@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 
 // PATCH /api/inventory/[id] — adjust BranchStock for a product
@@ -7,6 +8,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await assertManagerOrOwner(req)
+  if (denied) return denied
+
   try {
     const { tenantId, branchId: sessionBranchId } = getSession(req)
     const { id: productId } = await params

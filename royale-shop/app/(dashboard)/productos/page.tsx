@@ -1,5 +1,13 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
+function resolveUploadUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  if (url.startsWith("/uploads/")) return `/api${url}`
+  return url
+}
+
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -13,6 +21,7 @@ import {
 } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { useSession } from "@/contexts/session-context"
+import { useOwnerGuard } from "@/lib/use-role-guard"
 import { formatMXN } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -76,10 +85,10 @@ function MarginBadge({ price, cost }: { price: string; cost: string | null }) {
   if (pct === null) return <span className="text-muted-foreground">—</span>
   const pctStr = pct.toFixed(0) + "%"
   if (pct >= 40)
-    return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">{pctStr}</Badge>
+    return <Badge className="bg-[#0A0A0A] text-white border-transparent">{pctStr}</Badge>
   if (pct >= 20)
-    return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">{pctStr}</Badge>
-  return <Badge className="bg-red-100 text-red-800 border-red-200">{pctStr}</Badge>
+    return <Badge className="bg-[#E8E8E8] text-[#0A0A0A] border-transparent">{pctStr}</Badge>
+  return <Badge className="bg-[#0A0A0A] text-[var(--rs-gold)] border-transparent">{pctStr}</Badge>
 }
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
@@ -101,6 +110,7 @@ const EMPTY_FORM = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProductosPage() {
+  const { allowed } = useOwnerGuard()
   const { user } = useSession()
   const isOwnerOrManager = user?.role === "OWNER" || user?.role === "MANAGER"
 
@@ -174,7 +184,7 @@ export default function ProductosPage() {
       imageUrl: p.imageUrl ?? "",
       targetBranch: firstStock?.branchId ?? "all",
     })
-    setImagePreview(p.imageUrl ?? null)
+    setImagePreview(resolveUploadUrl(p.imageUrl))
     setOpen(true)
   }
 
@@ -322,7 +332,7 @@ export default function ProductosPage() {
     return entry?.minStock ?? 0
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  if (!allowed) return null
 
   return (
     <div>
@@ -427,7 +437,7 @@ export default function ProductosPage() {
                         {p.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={p.imageUrl}
+                            src={resolveUploadUrl(p.imageUrl)!}
                             alt={p.name}
                             width={40}
                             height={40}

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { getUserRole } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 
 type Period = "today" | "week" | "month"
@@ -30,10 +31,12 @@ function getDateRange(period: Period): { gte: Date; lte: Date } {
 
 export async function GET(req: NextRequest) {
   try {
-    const { tenantId } = getSession(req)
+    const { tenantId, branchId: sessionBranchId } = getSession(req)
+    const role = await getUserRole(req)
     const { searchParams } = req.nextUrl
     const period = (searchParams.get("period") ?? "today") as Period
-    const branchId = searchParams.get("branchId") // null = all branches
+    // CASHIER can only see their branch — force session branchId
+    const branchId = role === "CASHIER" ? sessionBranchId : searchParams.get("branchId")
 
     const dateRange = getDateRange(period)
 

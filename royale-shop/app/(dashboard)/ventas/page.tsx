@@ -1,8 +1,10 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { RefreshCw, Printer } from "lucide-react"
+import { RefreshCw, Printer, XCircle } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -18,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import Image from "next/image"
 import { formatMXN, formatDate, formatDateTime } from "@/lib/format"
 
 type SaleItem = {
@@ -26,6 +29,12 @@ type SaleItem = {
   price: string
   quantity: number
   subtotal: string
+}
+
+type Payment = {
+  id: string
+  method: "CASH" | "CARD" | "TRANSFER"
+  amount: string
 }
 
 type Sale = {
@@ -46,6 +55,7 @@ type Sale = {
   paymentMethod: "CASH" | "CARD" | "TRANSFER" | "MIXED"
   status: "COMPLETED" | "REFUNDED" | "CANCELLED"
   items: SaleItem[]
+  payments?: Payment[]
   user: { name: string } | null
   branch?: { name: string } | null
 }
@@ -55,6 +65,24 @@ const METHOD_LABEL: Record<string, string> = {
   CARD: "Tarjeta",
   TRANSFER: "Transferencia",
   MIXED: "Pago Mixto",
+}
+
+const METHOD_SHORT: Record<string, string> = {
+  CASH: "Ef",
+  CARD: "Tj",
+  TRANSFER: "Tf",
+}
+
+/** Devuelve las líneas de pago. Usa payments[] si existen (ventas nuevas), fallback a inline para ventas anteriores. */
+function getPaymentLines(sale: Sale): { method: string; amount: number }[] {
+  if (sale.payments && sale.payments.length > 0) {
+    return sale.payments.map((p) => ({ method: p.method, amount: parseFloat(p.amount) }))
+  }
+  const lines: { method: string; amount: number }[] = []
+  if (parseFloat(sale.cashAmount) > 0) lines.push({ method: "CASH", amount: parseFloat(sale.cashAmount) })
+  if (parseFloat(sale.cardAmount) > 0) lines.push({ method: "CARD", amount: parseFloat(sale.cardAmount) })
+  if (parseFloat(sale.transferAmount) > 0) lines.push({ method: "TRANSFER", amount: parseFloat(sale.transferAmount) })
+  return lines
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -72,13 +100,28 @@ const STATUS_VARIANT: Record<
   CANCELLED: "destructive",
 }
 
-function TicketView({ sale }: { sale: Sale }) {
+type TenantInfo = { name: string; phone: string | null; logoUrl: string | null }
+
+function ticketLogoSrc(logoUrl: string | null | undefined): string {
+  if (!logoUrl) return "/logo.jpg"
+  if (logoUrl.startsWith("/uploads/")) return `/api${logoUrl}`
+  return logoUrl
+}
+
+function TicketView({ sale, tenant }: { sale: Sale; tenant?: TenantInfo | null }) {
+  const bizName = tenant?.name ?? "Royal Shop"
   return (
     <div className="font-mono text-sm" id="ticket-print-area">
       {/* Header */}
-      <div className="text-center space-y-0.5 pb-3">
-        <p className="font-bold text-base tracking-wide">ROYALE SHOP</p>
+      <div className="text-center pb-3 space-y-1">
+        <div className="flex justify-center mb-2">
+          <Image src={ticketLogoSrc(tenant?.logoUrl)} alt={bizName} width={56} height={56} className="rounded-full object-cover" unoptimized />
+        </div>
+        <p className="font-bold text-base tracking-wide">{bizName.toUpperCase()}</p>
         <p className="text-xs text-muted-foreground">Joyería &amp; Perforaciones</p>
+        {tenant?.phone && (
+          <p className="text-xs text-muted-foreground">Tel: {tenant.phone}</p>
+        )}
         {sale.branch && (
           <p className="text-xs text-muted-foreground">{sale.branch.name}</p>
         )}
@@ -163,24 +206,12 @@ function TicketView({ sale }: { sale: Sale }) {
         )}
         {sale.paymentMethod === "MIXED" && (
           <>
-            {parseFloat(sale.cashAmount) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">· Efectivo</span>
-                <span>{formatMXN(parseFloat(sale.cashAmount))}</span>
+            {getPaymentLines(sale).map((p) => (
+              <div key={p.method} className="flex justify-between">
+                <span className="text-muted-foreground">· {METHOD_LABEL[p.method]}</span>
+                <span>{formatMXN(p.amount)}</span>
               </div>
-            )}
-            {parseFloat(sale.cardAmount) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">· Tarjeta</span>
-                <span>{formatMXN(parseFloat(sale.cardAmount))}</span>
-              </div>
-            )}
-            {parseFloat(sale.transferAmount) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">· Transferencia</span>
-                <span>{formatMXN(parseFloat(sale.transferAmount))}</span>
-              </div>
-            )}
+            ))}
             {parseFloat(sale.change) > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Cambio</span>
@@ -207,15 +238,28 @@ export default function VentasPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [detail, setDetail] = useState<Sale | null>(null)
+  const [pinDialogOpen, setPinDialogOpen] = useState(false)
+  const [cancelPin, setCancelPin] = useState("")
+  const [cancelling, setCancelling] = useState(false)
+  const [tenant, setTenant] = useState<TenantInfo | null>(null)
 
-  async function fetchSales() {
+  useEffect(() => {
+    apiFetch("/api/tenant")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setTenant({ name: data.name, phone: data.phone, logoUrl: data.logoUrl }) })
+      .catch(() => {})
+  }, [])
+
+  async function fetchSales(from?: string, to?: string) {
     try {
-      const res = await apiFetch("/api/sales?limit=50")
-      if (!res.ok) throw new Error("Error del servidor")
-      const data: Sale[] = await res.json()
-      setSales(data)
+      const params = new URLSearchParams({ limit: "200" })
+      if (from) params.set("startDate", from)
+      if (to) params.set("endDate", to + "T23:59:59")
+      const res = await apiFetch(`/api/sales?${params}`)
+      if (!res.ok) throw new Error()
+      setSales(await res.json())
     } catch {
-      toast.error("No se pudieron cargar las ventas")
+      // error silencioso — el estado vacío es suficiente feedback
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -223,12 +267,13 @@ export default function VentasPage() {
   }
 
   useEffect(() => {
-    fetchSales()
-  }, [])
+    fetchSales(dateFrom || undefined, dateTo || undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo])
 
   async function handleRefresh() {
     setRefreshing(true)
-    await fetchSales()
+    await fetchSales(dateFrom || undefined, dateTo || undefined)
     toast.success("Lista actualizada")
   }
 
@@ -236,19 +281,41 @@ export default function VentasPage() {
     window.print()
   }
 
+  async function handleCancel() {
+    if (!detail || !cancelPin) return
+    setCancelling(true)
+    try {
+      const res = await apiFetch(`/api/sales/${detail.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "cancel", authPin: cancelPin }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(body.error ?? "Error al cancelar la venta")
+        return
+      }
+      setSales((prev) => prev.map((s) => (s.id === body.id ? { ...s, status: "CANCELLED" } : s)))
+      setDetail((prev) => (prev ? { ...prev, status: "CANCELLED" } : prev))
+      setPinDialogOpen(false)
+      setCancelPin("")
+      toast.success(`Venta ${detail.folio} cancelada`)
+    } catch {
+      toast.error("Error de conexión")
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  // Date filtering is server-side; only text search is done client-side
   const filtered = sales.filter((sale) => {
     const q = search.toLowerCase()
-    const matchSearch =
+    return (
       !q ||
       (sale.folio ?? "").toLowerCase().includes(q) ||
       (sale.customerPhone ?? "").includes(q) ||
       (sale.customerName ?? "").toLowerCase().includes(q)
-
-    const saleDate = new Date(sale.createdAt)
-    const matchFrom = !dateFrom || saleDate >= new Date(dateFrom)
-    const matchTo = !dateTo || saleDate <= new Date(dateTo + "T23:59:59")
-
-    return matchSearch && matchFrom && matchTo
+    )
   })
 
   return (
@@ -384,9 +451,18 @@ export default function VentasPage() {
                       {formatMXN(parseFloat(sale.total))}
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <Badge variant="outline">
-                        {METHOD_LABEL[sale.paymentMethod] ?? sale.paymentMethod}
-                      </Badge>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <Badge variant="outline">
+                          {METHOD_LABEL[sale.paymentMethod] ?? sale.paymentMethod}
+                        </Badge>
+                        {sale.paymentMethod === "MIXED" && (
+                          <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                            {getPaymentLines(sale)
+                              .map((p) => `${METHOD_SHORT[p.method] ?? p.method} ${formatMXN(p.amount)}`)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant={STATUS_VARIANT[sale.status] ?? "secondary"}>
@@ -413,6 +489,53 @@ export default function VentasPage() {
           </table>
         </div>
       </Card>
+
+      {/* PIN Authorization Dialog */}
+      <Dialog open={pinDialogOpen} onOpenChange={(open) => { if (!open) { setPinDialogOpen(false); setCancelPin("") } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Autorización requerida</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Ingresa el PIN de <span className="font-medium text-foreground">Gerente u Owner</span> para cancelar la venta{" "}
+              <span className="font-mono font-medium">{detail?.folio}</span>.
+            </p>
+            <div>
+              <Label htmlFor="cancel-pin">PIN de autorización</Label>
+              <Input
+                id="cancel-pin"
+                type="password"
+                inputMode="numeric"
+                placeholder="••••"
+                value={cancelPin}
+                onChange={(e) => setCancelPin(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && cancelPin) handleCancel() }}
+                className="mt-1 min-h-[48px] text-center text-xl tracking-widest"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 min-h-[48px]"
+                onClick={() => { setPinDialogOpen(false); setCancelPin("") }}
+                disabled={cancelling}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 min-h-[48px]"
+                onClick={handleCancel}
+                disabled={!cancelPin || cancelling}
+              >
+                {cancelling ? "Cancelando..." : "Confirmar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Sale Detail Dialog */}
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null) }}>
@@ -518,24 +641,12 @@ export default function VentasPage() {
                   </div>
                   {detail.paymentMethod === "MIXED" && (
                     <div className="pl-2 space-y-0.5 text-xs text-muted-foreground">
-                      {parseFloat(detail.cashAmount) > 0 && (
-                        <div className="flex justify-between">
-                          <span>· Efectivo</span>
-                          <span className="font-mono">{formatMXN(parseFloat(detail.cashAmount))}</span>
+                      {getPaymentLines(detail).map((p) => (
+                        <div key={p.method} className="flex justify-between">
+                          <span>· {METHOD_LABEL[p.method]}</span>
+                          <span className="font-mono">{formatMXN(p.amount)}</span>
                         </div>
-                      )}
-                      {parseFloat(detail.cardAmount) > 0 && (
-                        <div className="flex justify-between">
-                          <span>· Tarjeta</span>
-                          <span className="font-mono">{formatMXN(parseFloat(detail.cardAmount))}</span>
-                        </div>
-                      )}
-                      {parseFloat(detail.transferAmount) > 0 && (
-                        <div className="flex justify-between">
-                          <span>· Transferencia</span>
-                          <span className="font-mono">{formatMXN(parseFloat(detail.transferAmount))}</span>
-                        </div>
-                      )}
+                      ))}
                     </div>
                   )}
                   {(detail.paymentMethod === "CASH" || detail.paymentMethod === "MIXED") && parseFloat(detail.change) > 0 && (
@@ -545,6 +656,23 @@ export default function VentasPage() {
                     </div>
                   )}
                 </div>
+
+                {detail.status !== "CANCELLED" && (
+                  <Button
+                    variant="destructive"
+                    className="w-full min-h-[48px] mt-2"
+                    onClick={() => { setCancelPin(""); setPinDialogOpen(true) }}
+                  >
+                    <XCircle className="size-4 mr-2" />
+                    Cancelar Ticket
+                  </Button>
+                )}
+                {detail.status === "CANCELLED" && (
+                  <div className="flex items-center justify-center gap-2 py-2 rounded-lg bg-destructive/10 text-destructive text-sm font-medium">
+                    <XCircle className="size-4" />
+                    Esta venta fue cancelada
+                  </div>
+                )}
               </TabsContent>
 
               {/* ── Ticket ── */}
@@ -556,7 +684,7 @@ export default function VentasPage() {
                   </Button>
                 </div>
                 <div className="rounded-xl border bg-white p-5 max-w-xs mx-auto shadow-sm">
-                  <TicketView sale={detail} />
+                  <TicketView sale={detail} tenant={tenant} />
                 </div>
               </TabsContent>
             </Tabs>

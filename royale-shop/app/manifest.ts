@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Royale Shop POS",
-    short_name: "Royale POS",
-    description: "Punto de venta Royale Shop",
+    name: "Royal Shop POS",
+    short_name: "Royal POS",
+    description: "Punto de venta Royal Shop",
     start_url: "/pos",
     display: "standalone",
     orientation: "portrait",
@@ -13,24 +13,22 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["business", "productivity"],
     icons: [
       {
-        // SVG: funciona en Chrome/Edge/Firefox modernos
         src: "/icons/icon.svg",
         sizes: "any",
         type: "image/svg+xml",
       },
       {
-        // PNG: iOS Safari + Android fallback — drop icon-192.png en /public/icons/
-        src: "/icons/icon-192.png",
+        src: "/logo-icon.png",
         sizes: "192x192",
         type: "image/png",
       },
       {
-        src: "/icons/icon-512.png",
+        src: "/logo.png",
         sizes: "512x512",
         type: "image/png",
       },
       {
-        src: "/icons/icon-512.png",
+        src: "/logo.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

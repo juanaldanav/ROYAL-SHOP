@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Plus, Pencil, RefreshCw } from "lucide-react"
@@ -17,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api-client"
+import { useOwnerGuard } from "@/lib/use-role-guard"
 
 type Branch = {
   id: string
@@ -30,6 +33,7 @@ type Branch = {
 const EMPTY = { name: "", address: "", phone: "" }
 
 export default function SucursalesPage() {
+  const { allowed } = useOwnerGuard()
   const [branches, setBranches] = useState<Branch[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -106,6 +110,8 @@ export default function SucursalesPage() {
       toast.error("Error al actualizar sucursal")
     }
   }
+
+  if (!allowed) return null
 
   return (
     <div>

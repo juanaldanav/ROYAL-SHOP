@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -7,6 +8,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { id } = await params
     const body = await req.json()
@@ -39,6 +42,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { id } = await params
 

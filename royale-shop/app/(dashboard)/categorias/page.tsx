@@ -1,9 +1,12 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Plus, Pencil, RefreshCw, Tag } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useOwnerGuard } from "@/lib/use-role-guard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -36,6 +39,7 @@ type Category = {
 const EMPTY = { name: "", type: "PRODUCT" }
 
 export default function CategoriasPage() {
+  const { allowed } = useOwnerGuard()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -113,6 +117,8 @@ export default function CategoriasPage() {
 
   const activeCategories = categories.filter((c) => c.active)
   const inactiveCategories = categories.filter((c) => !c.active)
+
+  if (!allowed) return null
 
   return (
     <div>

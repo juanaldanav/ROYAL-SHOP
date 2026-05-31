@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState, useCallback } from "react"
 import { toast } from "sonner"
 import { RefreshCw, TrendingUp } from "lucide-react"
@@ -64,7 +66,7 @@ export default function ReportesPage() {
       if (!res.ok) throw new Error()
       setData(await res.json())
     } catch {
-      toast.error("Error al cargar el reporte")
+      // sin toast — datos vacíos no son un error visible
     } finally {
       setLoading(false)
     }

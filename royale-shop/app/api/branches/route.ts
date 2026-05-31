@@ -1,11 +1,28 @@
 import { db } from "@/lib/db"
-import { DEV_TENANT_ID } from "@/lib/constants"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
   try {
-    const { tenantId } = getSession(req)
+    const { tenantId, userId } = getSession(req)
+    const accessible = req.nextUrl.searchParams.get("accessible") === "true"
+
+    if (accessible) {
+      // Resolve caller's role to decide scope
+      const caller = await db.user.findFirst({
+        where: { id: userId, tenantId },
+        select: { role: true },
+      })
+      // OWNER sees all active branches; MANAGER only sees their UserBranch entries
+      if (caller?.role !== "OWNER") {
+        const branches = await db.branch.findMany({
+          where: { tenantId, active: true, userBranches: { some: { userId } } },
+          orderBy: { name: "asc" },
+        })
+        return NextResponse.json(branches)
+      }
+    }
 
     const branches = await db.branch.findMany({
       where: { tenantId, active: true },
@@ -22,6 +39,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { name, address, phone } = await req.json()
 

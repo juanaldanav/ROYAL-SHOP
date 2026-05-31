@@ -28,6 +28,7 @@ model Tenant {
   cashCuts      CashCut[]
   branchStocks  BranchStock[]
   transfers     Transfer[]
+  cashMovements CashMovement[]
 }
 
 // ─── BRANCH ───────────────────────────────────────────────────────────────────
@@ -41,13 +42,27 @@ model Branch {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
   users           User[]
   sales           Sale[]
   cashCuts        CashCut[]
   branchStocks    BranchStock[]
-  transfersFrom   Transfer[]    @relation("TransfersFrom")
-  transfersTo     Transfer[]    @relation("TransfersTo")
+  transfersFrom   Transfer[]     @relation("TransfersFrom")
+  transfersTo     Transfer[]     @relation("TransfersTo")
+  cashMovements   CashMovement[]
+  userBranches    UserBranch[]
+}
+
+// ─── USER BRANCH (acceso multi-sucursal para MANAGER/OWNER) ──────────────────
+
+model UserBranch {
+  userId   String
+  branchId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+  @@index([userId])
 }
 
 // ─── USER ─────────────────────────────────────────────────────────────────────
@@ -63,12 +78,14 @@ model User {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tenant             Tenant     @relation(fields: [tenantId], references: [id])
-  branch             Branch?    @relation(fields: [branchId], references: [id])
-  sales              Sale[]
-  cashCuts           CashCut[]
-  transfersCreated   Transfer[] @relation("TransfersCreated")
-  transfersConfirmed Transfer[] @relation("TransfersConfirmed")
+  tenant                  Tenant         @relation(fields: [tenantId], references: [id])
+  branch                  Branch?        @relation(fields: [branchId], references: [id])
+  sales                   Sale[]
+  cashCuts                CashCut[]
+  transfersCreated        Transfer[]     @relation("TransfersCreated")
+  transfersConfirmed      Transfer[]     @relation("TransfersConfirmed")
+  authorizedMovements     CashMovement[]
+  userBranches            UserBranch[]
 }
 
 enum UserRole {
@@ -199,11 +216,13 @@ model Sale {
   notes     String?
   createdAt DateTime   @default(now())
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  branch   Branch    @relation(fields: [branchId], references: [id])
-  user     User      @relation(fields: [userId], references: [id])
-  cashCut  CashCut?  @relation(fields: [cashCutId], references: [id])
-  items    SaleItem[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  branch        Branch         @relation(fields: [branchId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  cashCut       CashCut?       @relation(fields: [cashCutId], references: [id])
+  items         SaleItem[]
+  payments      Payment[]
+  cashMovements CashMovement[]
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, cashCutId])
@@ -220,6 +239,19 @@ enum SaleStatus {
   COMPLETED
   REFUNDED
   CANCELLED
+}
+
+// ─── PAYMENT (desglose por método de pago — reemplaza inline cashAmount/etc.) ─
+
+model Payment {
+  id        String        @id @default(cuid())
+  saleId    String
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(10, 2)
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
 }
 
 // ─── SALE ITEM ────────────────────────────────────────────────────────────────
@@ -256,14 +288,20 @@ model CashCut {
   expectedCash   Decimal? @db.Decimal(10, 2)
   countedCash    Decimal? @db.Decimal(10, 2)
   difference     Decimal? @db.Decimal(10, 2)
+  expectedCard      Decimal? @db.Decimal(10, 2)
+  countedCard       Decimal? @db.Decimal(10, 2)
+  cardDifference    Decimal? @db.Decimal(10, 2)
+  cuadreStatus      String?
+  cardCuadreStatus  String?
 
   status CashCutStatus @default(OPEN)
   notes  String?
 
-  tenant Tenant  @relation(fields: [tenantId], references: [id])
-  branch Branch  @relation(fields: [branchId], references: [id])
-  user   User    @relation(fields: [userId], references: [id])
-  sales  Sale[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  branch        Branch         @relation(fields: [branchId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  sales         Sale[]
+  cashMovements CashMovement[]
 
   @@index([tenantId, branchId, status])
 }
@@ -271,6 +309,33 @@ model CashCut {
 enum CashCutStatus {
   OPEN
   CLOSED
+}
+
+// ─── CASH MOVEMENT (egresos/devoluciones dentro de un corte) ─────────────────
+
+model CashMovement {
+  id             String           @id @default(cuid())
+  tenantId       String
+  branchId       String
+  cashCutId      String
+  type           CashMovementType
+  amount         Decimal          @db.Decimal(10, 2)
+  description    String
+  relatedSaleId  String?
+  authorizedById String
+  createdAt      DateTime         @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  cashCut       CashCut  @relation(fields: [cashCutId], references: [id])
+  relatedSale   Sale?    @relation(fields: [relatedSaleId], references: [id])
+  authorizedBy  User     @relation(fields: [authorizedById], references: [id])
+
+  @@index([tenantId, cashCutId])
+}
+
+enum CashMovementType {
+  REFUND
 }
 
 // ─── TRANSFER (traspaso de inventario entre sucursales) ───────────────────────

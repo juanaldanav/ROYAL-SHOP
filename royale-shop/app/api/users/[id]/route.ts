@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 import { UserRole } from "@/app/generated/prisma/client"
@@ -8,10 +9,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { id } = await params
     const body = await req.json()
-    const { name, email, pin, role, branchId, active } = body
+    const { name, email, pin, role, branchId, branchIds, active } = body
 
     const existing = await db.user.findFirst({ where: { id, tenantId } })
     if (!existing) {
@@ -35,17 +38,30 @@ export async function PATCH(
       }
     }
 
-    const updated = await db.user.update({
-      where: { id },
-      data: {
-        ...(name !== undefined ? { name } : {}),
-        ...(email !== undefined ? { email } : {}),
-        ...(pin !== undefined ? { pin: String(pin) } : {}),
-        ...(role !== undefined ? { role: role as UserRole } : {}),
-        ...(branchId !== undefined ? { branchId } : {}),
-        ...(active !== undefined ? { active } : {}),
-      },
-      include: { branch: { select: { name: true } } },
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id },
+        data: {
+          ...(name !== undefined ? { name } : {}),
+          ...(email !== undefined ? { email } : {}),
+          ...(pin !== undefined ? { pin: String(pin) } : {}),
+          ...(role !== undefined ? { role: role as UserRole } : {}),
+          ...(branchId !== undefined ? { branchId } : {}),
+          ...(active !== undefined ? { active } : {}),
+        },
+        include: { branch: { select: { name: true } } },
+      })
+      // Replace UserBranch records when branchIds is explicitly provided
+      if (Array.isArray(branchIds)) {
+        await tx.userBranch.deleteMany({ where: { userId: id } })
+        if (branchIds.length > 0) {
+          await tx.userBranch.createMany({
+            data: (branchIds as string[]).map((bid) => ({ userId: id, branchId: bid })),
+            skipDuplicates: true,
+          })
+        }
+      }
+      return u
     })
 
     return NextResponse.json({ ...updated, pin: undefined })
@@ -60,6 +76,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { id } = await params
 

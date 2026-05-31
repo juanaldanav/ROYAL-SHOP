@@ -1,13 +1,18 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { getUserRole } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
   try {
-    const { tenantId, branchId } = getSession(req)
+    const { tenantId, branchId: sessionBranchId } = getSession(req)
+    const role = await getUserRole(req)
     const { searchParams } = req.nextUrl
     const onlyLowStock = searchParams.get("lowStock") === "true"
-    const overrideBranch = searchParams.get("branchId") ?? branchId
+    // CASHIER can only see their branch stock — query param override blocked
+    const overrideBranch = role === "CASHIER"
+      ? sessionBranchId
+      : (searchParams.get("branchId") ?? sessionBranchId)
 
     const products = await db.product.findMany({
       where: { tenantId, active: true },

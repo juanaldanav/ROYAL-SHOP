@@ -1,10 +1,13 @@
 import { db } from "@/lib/db"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { getSession } from "@/lib/session"
 import { NextRequest, NextResponse } from "next/server"
 import { UserRole } from "@/app/generated/prisma/client"
 
 export async function GET(req: NextRequest) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
     const { searchParams } = req.nextUrl
     const branchId = searchParams.get("branchId")
@@ -15,7 +18,10 @@ export async function GET(req: NextRequest) {
         active: true,
         ...(branchId ? { branchId } : {}),
       },
-      include: { branch: { select: { name: true } } },
+      include: {
+        branch: { select: { name: true } },
+        userBranches: { include: { branch: { select: { id: true, name: true } } } },
+      },
       orderBy: { name: "asc" },
     })
 
@@ -28,8 +34,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId } = getSession(req)
-    const { name, email, pin, role, branchId } = await req.json()
+    const { name, email, pin, role, branchId, branchIds } = await req.json()
 
     if (!name || !email) {
       return NextResponse.json({ error: "name y email son requeridos" }, { status: 400 })
@@ -52,16 +60,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const user = await db.user.create({
-      data: {
-        tenantId,
-        name,
-        email,
-        pin: pin ? String(pin) : null,
-        role: (role as UserRole) ?? "CASHIER",
-        branchId: branchId ?? null,
-      },
-      include: { branch: { select: { name: true } } },
+    const user = await db.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          tenantId,
+          name,
+          email,
+          pin: pin ? String(pin) : null,
+          role: (role as UserRole) ?? "CASHIER",
+          branchId: branchId ?? null,
+        },
+        include: { branch: { select: { name: true } } },
+      })
+      // UserBranch records for MANAGER multi-branch access
+      const bids: string[] = Array.isArray(branchIds) ? branchIds : []
+      if (bids.length > 0) {
+        await tx.userBranch.createMany({
+          data: bids.map((bid) => ({ userId: u.id, branchId: bid })),
+          skipDuplicates: true,
+        })
+      }
+      return u
     })
 
     return NextResponse.json({ ...user, pin: undefined }, { status: 201 })

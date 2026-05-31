@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { DEV_TENANT_ID, DEV_BRANCH_ID } from "@/lib/constants"
 import { getSession } from "@/lib/session"
+import { assertManagerOrOwner } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 
 interface CsvRow {
@@ -54,6 +55,8 @@ async function findOrCreateCategory(
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await assertManagerOrOwner(req)
+    if (denied) return denied
     const { tenantId, branchId: sessionBranchId } = getSession(req)
     const targetBranchId = sessionBranchId ?? DEV_BRANCH_ID
     const formData = await req.formData()

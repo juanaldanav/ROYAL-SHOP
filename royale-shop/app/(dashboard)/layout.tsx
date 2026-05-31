@@ -11,7 +11,6 @@ import {
   Tag,
   ShoppingCart,
   Receipt,
-  Gem,
   BarChart2,
   Store,
   Users,
@@ -21,25 +20,39 @@ import {
   MoreHorizontal,
   X,
   Plus,
+  ChevronsUpDown,
+  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useSession } from "@/contexts/session-context"
+import { apiFetch } from "@/lib/api-client"
 import { toast } from "sonner"
 
-// Bottom-nav: 2 left + 2 right (center is the FAB)
-const leftNav = [
-  { href: "/dashboard",  label: "Dashboard", icon: LayoutDashboard },
-  { href: "/ventas",     label: "Ventas",     icon: ShoppingCart },
-]
-const rightNav = [
-  { href: "/traspasos",  label: "Traspasos",  icon: ArrowLeftRight },
-  { href: "/inventario", label: "Inventario", icon: BarChart2 },
-]
+// Páginas accesibles por rol
+// CASHIER → /pos + historial propio (/ventas, /cortes)
+// MANAGER → operativas (sin CRUD de config)
+// OWNER   → todo
+const CASHIER_PAGES = new Set(["/ventas", "/cortes"])
+const MANAGER_PAGES = new Set([
+  "/dashboard", "/ventas", "/cortes", "/traspasos", "/inventario", "/reportes",
+])
+const OWNER_ONLY_PAGES = new Set([
+  "/productos", "/servicios", "/categorias", "/sucursales", "/cajeros", "/configuracion",
+])
 
-// All nav items (sidebar + overflow sheet)
-const allNav = [
+type NavItem = { href: string; label: string; icon: React.ElementType }
+
+const NAV_ALL: NavItem[] = [
   { href: "/dashboard",  label: "Dashboard",     icon: LayoutDashboard },
   { href: "/ventas",     label: "Ventas",         icon: ShoppingCart },
   { href: "/traspasos",  label: "Traspasos",      icon: ArrowLeftRight },
@@ -49,8 +62,31 @@ const allNav = [
   { href: "/categorias", label: "Categorías",     icon: Tag },
   { href: "/cortes",     label: "Cortes de Caja", icon: Receipt },
   { href: "/reportes",   label: "Reportes",       icon: TrendingUp },
-  { href: "/sucursales", label: "Sucursales",     icon: Store },
-  { href: "/cajeros",    label: "Cajeros",        icon: Users },
+  { href: "/sucursales",    label: "Sucursales",    icon: Store },
+  { href: "/cajeros",       label: "Cajeros",       icon: Users },
+  { href: "/configuracion", label: "Configuración", icon: Settings },
+]
+
+const NAV_CASHIER: NavItem[] = [
+  { href: "/ventas", label: "Mis Ventas",  icon: ShoppingCart },
+  { href: "/cortes", label: "Mis Turnos",  icon: Receipt },
+]
+
+function navForRole(role: string): NavItem[] {
+  if (role === "OWNER")   return NAV_ALL
+  if (role === "MANAGER") return NAV_ALL.filter((n) => MANAGER_PAGES.has(n.href))
+  if (role === "CASHIER") return NAV_CASHIER
+  return []
+}
+
+// Bottom-nav: 2 left + 2 right (center is the FAB)
+const leftNav = [
+  { href: "/dashboard",  label: "Dashboard", icon: LayoutDashboard },
+  { href: "/ventas",     label: "Ventas",     icon: ShoppingCart },
+]
+const rightNav = [
+  { href: "/traspasos",  label: "Traspasos",  icon: ArrowLeftRight },
+  { href: "/inventario", label: "Inventario", icon: BarChart2 },
 ]
 
 const pageTitles: Record<string, string> = {
@@ -63,15 +99,16 @@ const pageTitles: Record<string, string> = {
   "/inventario": "Inventario",
   "/reportes":   "Reportes",
   "/sucursales": "Sucursales",
-  "/cajeros":    "Cajeros",
-  "/traspasos":  "Traspasos",
+  "/cajeros":       "Cajeros",
+  "/traspasos":     "Traspasos",
+  "/configuracion": "Configuración",
 }
 
-function SidebarLinks({ onSelect }: { onSelect?: () => void }) {
+function SidebarLinks({ onSelect, items }: { onSelect?: () => void; items: NavItem[] }) {
   const pathname = usePathname()
   return (
     <nav className="flex-1 px-3 py-4 space-y-0.5">
-      {allNav.map(({ href, label, icon: Icon }) => (
+      {items.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
@@ -119,19 +156,57 @@ function NavTab({
   )
 }
 
+type BranchOption = { id: string; name: string }
+type TenantInfo = { name: string; logoUrl: string | null }
+
+function tenantLogoSrc(logoUrl: string | null | undefined): string {
+  if (!logoUrl) return "/logo.jpg"
+  if (logoUrl.startsWith("/uploads/")) return `/api${logoUrl}`
+  return logoUrl
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [moreOpen, setMoreOpen] = useState(false)
   const [ventaOpen, setVentaOpen] = useState(false)
-  const { user, loaded, logout } = useSession()
-  const title = pageTitles[pathname] ?? "Royale Shop"
+  const [branchOptions, setBranchOptions] = useState<BranchOption[]>([])
+  const [tenant, setTenant] = useState<TenantInfo | null>(null)
+  const { user, loaded, logout, switchBranch } = useSession()
+  const title = pageTitles[pathname] ?? tenant?.name ?? "Royal Shop"
 
   useEffect(() => {
-    if (loaded && !user) {
-      router.replace("/login")
+    if (!loaded) return
+    if (!user) { router.replace("/login"); return }
+    // CASHIER: solo /pos + sus páginas permitidas
+    if (user.role === "CASHIER" && !CASHIER_PAGES.has(pathname)) {
+      router.replace("/pos")
+      return
     }
-  }, [loaded, user, router])
+    // MANAGER no puede acceder a páginas OWNER-only
+    if (user.role === "MANAGER" && OWNER_ONLY_PAGES.has(pathname)) {
+      router.replace("/dashboard")
+    }
+  }, [loaded, user, pathname, router])
+
+  // Cargar sucursales disponibles para el dropdown (OWNER/MANAGER únicamente)
+  useEffect(() => {
+    if (!user || user.role === "CASHIER") return
+    apiFetch("/api/branches?accessible=true")
+      .then((r) => r.json())
+      .then((data) => setBranchOptions(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [user?.id, user?.role])
+
+  useEffect(() => {
+    if (!user) return
+    apiFetch("/api/tenant")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setTenant({ name: data.name, logoUrl: data.logoUrl }) })
+      .catch(() => {})
+  }, [user?.id])
+
+  const allNav = navForRole(user?.role ?? "")
 
   function handleLogout() {
     logout()
@@ -139,7 +214,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.replace("/login")
   }
 
-  if (!loaded) return null
+  if (!loaded || !user) return null
+  // CASHIER solo puede ver sus páginas permitidas; bloquear render en otras (ya redirige arriba)
+  if (user.role === "CASHIER" && !CASHIER_PAGES.has(pathname)) return null
 
   return (
     <div className="flex min-h-screen bg-muted/40">
@@ -147,8 +224,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Desktop Sidebar (md+) ── */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 fixed left-0 top-0 h-screen bg-white z-30">
         <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E8E8E8]">
-          <Image src="/logo.jpg" alt="Royal Shop" width={34} height={34} className="rounded-full object-cover shrink-0" />
-          <span className="font-bold text-base">Royale Shop</span>
+          <Image src={tenantLogoSrc(tenant?.logoUrl)} alt={tenant?.name ?? "Royal Shop"} width={34} height={34} className="rounded-full shrink-0 object-cover" unoptimized />
+          <span className="font-bold text-base">{tenant?.name ?? "Royal Shop"}</span>
         </div>
 
         {user && (
@@ -158,7 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <SidebarLinks />
+        <SidebarLinks items={allNav} />
 
         {/* Transición blanco → negro */}
         <div className="h-10 relative shrink-0 bg-white overflow-hidden">
@@ -191,15 +268,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* ── Header ── */}
         <header className="sticky top-0 z-20 flex items-center gap-3 px-4 h-14 bg-background border-b shadow-sm">
-          <Image src="/logo.jpg" alt="Royal Shop" width={30} height={30} className="rounded-full object-cover shrink-0" />
+          <Image src={tenantLogoSrc(tenant?.logoUrl)} alt={tenant?.name ?? "Royal Shop"} width={30} height={30} className="rounded-full shrink-0 object-cover" unoptimized />
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span className="font-bold text-base truncate">Royale Shop</span>
+            <span className="font-bold text-base truncate">{tenant?.name ?? "Royal Shop"}</span>
             <span className="text-muted-foreground hidden sm:inline text-sm">·</span>
             <span className="text-sm text-muted-foreground hidden sm:inline truncate">{title}</span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {user && (
+            {/* Branch switcher — solo OWNER y MANAGER con múltiples sucursales */}
+            {user && branchOptions.length > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className="hidden sm:flex h-9 px-2.5 text-xs gap-1.5 items-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground max-w-[160px] transition-colors"
+                >
+                  <span className="truncate">{user.branchName}</span>
+                  <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                    Cambiar sucursal
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {branchOptions.map((b) => (
+                    <DropdownMenuItem
+                      key={b.id}
+                      onClick={() => b.id !== user.branchId && switchBranch(b.id, b.name)}
+                      className={cn(
+                        "text-sm",
+                        b.id === user.branchId && "font-semibold text-primary"
+                      )}
+                    >
+                      {b.id === user.branchId && (
+                        <span className="mr-1.5 inline-block w-1.5 h-1.5 rounded-full bg-primary" />
+                      )}
+                      {b.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {user && branchOptions.length <= 1 && (
               <span className="text-xs text-muted-foreground hidden sm:block truncate max-w-[140px]">
                 {user.name} · {user.branchName}
               </span>
@@ -351,10 +460,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ── Mobile "Más" Sheet ── */}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="h-auto rounded-t-2xl p-0">
+        <SheetContent side="bottom" className="h-auto rounded-t-2xl p-0" showCloseButton={false}>
           <div className="flex items-center justify-between px-5 py-4 border-b">
             <div className="flex items-center gap-2">
-              <Image src="/logo.jpg" alt="Royal Shop" width={24} height={24} className="rounded-full object-cover" />
+              <Image src={tenantLogoSrc(tenant?.logoUrl)} alt={tenant?.name ?? "Royal Shop"} width={24} height={24} className="rounded-full shrink-0 object-cover" unoptimized />
               <SheetTitle className="font-bold text-base">Menú</SheetTitle>
             </div>
             <Button variant="ghost" size="icon" className="size-8" onClick={() => setMoreOpen(false)}>

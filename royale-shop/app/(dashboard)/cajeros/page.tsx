@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Plus, Pencil, RefreshCw } from "lucide-react"
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api-client"
+import { useOwnerGuard } from "@/lib/use-role-guard"
 
 type Branch = { id: string; name: string }
 type CashierUser = {
@@ -34,6 +37,7 @@ type CashierUser = {
   active: boolean
   branchId: string | null
   branch: { name: string } | null
+  userBranches: { branch: { id: string; name: string } }[]
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -42,9 +46,10 @@ const ROLE_LABEL: Record<string, string> = {
   CASHIER: "Cajero",
 }
 
-const EMPTY = { name: "", email: "", pin: "", role: "CASHIER", branchId: "" }
+const EMPTY = { name: "", email: "", pin: "", role: "CASHIER", branchId: "", branchIds: [] as string[] }
 
 export default function CajerosPage() {
+  const { allowed } = useOwnerGuard()
   const [users, setUsers] = useState<CashierUser[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
   const [loading, setLoading] = useState(true)
@@ -84,6 +89,7 @@ export default function CajerosPage() {
       pin: "",
       role: u.role,
       branchId: u.branchId ?? "",
+      branchIds: u.userBranches?.map((ub) => ub.branch.id) ?? [],
     })
     setDialog(u)
   }
@@ -100,11 +106,15 @@ export default function CajerosPage() {
     setSaving(true)
     try {
       const isEdit = dialog !== "create" && dialog !== null
+      const isManager = form.role === "MANAGER"
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
         email: form.email.trim(),
         role: form.role,
-        branchId: form.branchId || null,
+        // CASHIER: single branchId; MANAGER: branchId = first selected; OWNER: no restriction
+        branchId: form.role === "OWNER" ? null : (form.branchId || (isManager && form.branchIds[0]) || null),
+        // MANAGER: also send branchIds for multi-branch access (UserBranch)
+        ...(isManager ? { branchIds: form.branchIds } : {}),
       }
       if (form.pin) payload.pin = form.pin
 
@@ -143,6 +153,8 @@ export default function CajerosPage() {
       toast.error("Error al actualizar usuario")
     }
   }
+
+  if (!allowed) return null
 
   return (
     <div>
@@ -197,7 +209,9 @@ export default function CajerosPage() {
                     <td className="px-4 py-3 font-medium">{u.name}</td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{u.email}</td>
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                      {u.branch?.name ?? "—"}
+                      {u.role === "MANAGER" && u.userBranches?.length > 0
+                        ? u.userBranches.map((ub) => ub.branch.name).join(", ")
+                        : (u.branch?.name ?? "—")}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant="outline">{ROLE_LABEL[u.role] ?? u.role}</Badge>
@@ -267,22 +281,93 @@ export default function CajerosPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Sucursal</Label>
-              <Select value={form.branchId} onValueChange={(v) => setForm((f) => ({ ...f, branchId: (v === "none" || !v) ? "" : v }))}>
-                <SelectTrigger className="min-h-[44px]">
-                  <SelectValue>
-                    {(v: string | null) => !v || v === "none" ? "Sin sucursal" : (branches.find(b => b.id === v)?.name ?? v)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin sucursal</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* CASHIER: single branch (login branch) */}
+            {form.role === "CASHIER" && (
+              <div className="space-y-2">
+                <Label>Sucursal</Label>
+                <Select value={form.branchId} onValueChange={(v) => setForm((f) => ({ ...f, branchId: (v === "none" || !v) ? "" : v }))}>
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue>
+                      {(v: string | null) => !v || v === "none" ? "Sin sucursal" : (branches.find(b => b.id === v)?.name ?? v)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin sucursal</SelectItem>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* MANAGER: multi-select branches + home branch */}
+            {form.role === "MANAGER" && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Sucursales accesibles</Label>
+                  <p className="text-xs text-muted-foreground">
+                    El gerente podrá cambiar entre estas sucursales desde el dashboard.
+                  </p>
+                  <div className="rounded-lg border p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {branches.map((b) => {
+                      const checked = form.branchIds.includes(b.id)
+                      return (
+                        <label key={b.id} className="flex items-center gap-2.5 cursor-pointer min-h-[32px]">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setForm((f) => ({
+                                ...f,
+                                branchIds: checked
+                                  ? f.branchIds.filter((id) => id !== b.id)
+                                  : [...f.branchIds, b.id],
+                                // If unchecking the home branch, clear branchId
+                                branchId: !checked ? (f.branchId || b.id) : (f.branchId === b.id ? "" : f.branchId) ?? "",
+                              }))
+                            }}
+                            className="size-4 rounded accent-primary"
+                          />
+                          <span className="text-sm">{b.name}</span>
+                        </label>
+                      )
+                    })}
+                    {branches.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No hay sucursales disponibles</p>
+                    )}
+                  </div>
+                </div>
+                {form.branchIds.length > 1 && (
+                  <div className="space-y-2">
+                    <Label>Sucursal de acceso (login)</Label>
+                    <Select
+                      value={form.branchId}
+                      onValueChange={(v) => setForm((f) => ({ ...f, branchId: v ?? "" }))}
+                    >
+                      <SelectTrigger className="min-h-[44px]">
+                        <SelectValue>
+                          {(v: string | null) => branches.find(b => b.id === v)?.name ?? "Selecciona..."}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {form.branchIds.map((bid) => {
+                          const b = branches.find((x) => x.id === bid)
+                          return b ? <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem> : null
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* OWNER: no branch restriction */}
+            {form.role === "OWNER" && (
+              <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 px-3 py-2">
+                Los dueños tienen acceso a todas las sucursales del tenant.
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)} className="min-h-[44px]">Cancelar</Button>

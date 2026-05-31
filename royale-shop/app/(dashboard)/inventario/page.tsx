@@ -1,9 +1,12 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { AlertTriangle, Upload, RefreshCw, Package, Minus, Plus, Check, X } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useSession } from "@/contexts/session-context"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -184,6 +187,8 @@ function StockCell({
 }
 
 export default function InventarioPage() {
+  const { user } = useSession()
+  const isOwner = user?.role === "OWNER"
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -274,8 +279,8 @@ export default function InventarioPage() {
         </Button>
       </div>
 
-      {/* CSV Import */}
-      <Card className="p-4 mb-6">
+      {/* CSV Import — solo OWNER */}
+      {isOwner && <Card className="p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Upload className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">Importar desde CSV</h2>
@@ -329,7 +334,7 @@ export default function InventarioPage() {
             )}
           </div>
         )}
-      </Card>
+      </Card>}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">

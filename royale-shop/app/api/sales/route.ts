@@ -1,16 +1,20 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { getUserRole } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 import { PaymentMethod } from "@/app/generated/prisma/client"
 import { generateFolio } from "@/lib/format"
 
 export async function GET(req: NextRequest) {
   try {
-    const { tenantId } = getSession(req)
+    const { tenantId, branchId: sessionBranchId } = getSession(req)
+    const role = await getUserRole(req)
     const { searchParams } = req.nextUrl
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
-    const branchId = searchParams.get("branchId")
+    const queryBranchId = searchParams.get("branchId")
+    // CASHIER can only see their own branch — no override allowed
+    const branchId = role === "CASHIER" ? sessionBranchId : queryBranchId
     const limit = parseInt(searchParams.get("limit") ?? "50", 10)
     const offset = parseInt(searchParams.get("offset") ?? "0", 10)
 
@@ -29,6 +33,7 @@ export async function GET(req: NextRequest) {
       },
       include: {
         items: true,
+        payments: true,
         user: { select: { name: true } },
         branch: { select: { name: true } },
       },
@@ -181,6 +186,22 @@ export async function POST(req: NextRequest) {
             create: { tenantId, branchId, productId: item.productId, stock: 0 },
           })
         }
+      }
+
+      // Crear Payment records — desglose real por método (nunca MIXED)
+      const paymentLines: { method: string; amount: number }[] =
+        paymentMethod === "MIXED"
+          ? [
+              { method: "CASH",     amount: Number(cashAmount) },
+              { method: "CARD",     amount: Number(cardAmount) },
+              { method: "TRANSFER", amount: Number(transferAmount) },
+            ].filter((p) => p.amount > 0)
+          : [{ method: paymentMethod, amount: total }]
+
+      for (const p of paymentLines) {
+        await tx.payment.create({
+          data: { saleId: newSale.id, method: p.method as PaymentMethod, amount: p.amount },
+        })
       }
 
       return newSale

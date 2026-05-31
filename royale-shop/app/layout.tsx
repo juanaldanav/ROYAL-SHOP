@@ -5,27 +5,27 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 const dmSans = DM_Sans({
-  variable: "--font-geist-sans",
+  variable: "--font-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "Royale Shop — POS",
-  description: "Punto de venta para Royale Shop",
+  title: "Royal Shop — POS",
+  description: "Punto de venta para Royal Shop",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Royale POS",
+    title: "Royal POS",
   },
   icons: {
     icon: [
       { url: "/icons/icon.svg", type: "image/svg+xml" },
-      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/logo-icon.png", type: "image/png", sizes: "192x192" },
     ],
     apple: [
-      { url: "/icons/icon-192.png", sizes: "192x192" },
+      { url: "/logo-icon.png", sizes: "192x192" },
     ],
   },
 };
@@ -43,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${dmSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="es" className={`${dmSans.variable} font-sans h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full bg-background text-foreground">
         <Providers>
           {children}
