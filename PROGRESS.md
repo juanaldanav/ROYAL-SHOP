@@ -159,11 +159,22 @@
 
 | # | Req | Estado | Detalle |
 |---|-----|--------|---------|
-| 1 | Footer cajero | ✅ | Bottom nav dedicado y fijo para CASHIER (Caja/Mis Ventas/Mi Turno), visible en móvil e iPad; siempre vuelve al POS. Sidebar oculto para cajero. OWNER/MANAGER sin cambios. |
-| 8 | Mis Turnos | ✅ | `/cortes` para CASHIER = "Mi Turno": solo turno activo, estado vacío con "Abrir Turno", sin historial ajeno. Historial completo solo OWNER/MANAGER. |
+| 1 | Footer cajero | ✅ | Bottom nav dedicado y fijo para CASHIER (Caja/Mi Turno/Mis Ventas), visible en móvil e iPad; siempre vuelve al POS. Sidebar oculto para cajero. OWNER/MANAGER sin cambios. |
+| 2 | Header móvil | ✅ | El título de página solo aparece desde md+; en móvil queda solo el nombre (truncado), sin desbordar. |
 | 3 | Tablas mobile | ✅ | Mis Ventas y Cortes: cards en móvil (<sm), tabla en sm+. Items del detalle compactados. Sin scroll horizontal. |
+| 4 | Salidas de efectivo | ✅ | Enum EXPENSE; POST /api/cash-movements (monto>0 + razón); el cierre resta salidas y devoluciones del efectivo esperado; UI "Registrar salida" en Mi Turno. |
+| 5 | SMTP ticket por correo | ✅ (requiere config) | Tenant.email + EmailLog; nodemailer por env; envío automático del PDF al cerrar venta si hay customerEmail + correo del negocio. **Falta poner SMTP_HOST/USER/PASS en el .env de prod para activarlo.** |
+| 6 | Modal apertura caja | ✅ | Al iniciar sesión, si el CASHIER no tiene turno, modal "Abrir caja / Hacerlo después" (sessionStorage, no bloquea). |
+| 7 | Orden menú | ✅ | "Mis Turnos" antes de "Mis Ventas" (NAV_CASHIER y bottom nav). |
+| 8 | Mis Turnos | ✅ | `/cortes` para CASHIER = "Mi Turno": solo turno activo, estado vacío con "Abrir Turno", sin historial ajeno. Historial completo solo OWNER/MANAGER. |
 
-Pendientes de Diana: 2 (header), 4 (salidas efectivo + razón), 5 (SMTP — post-demo), 6 (modal apertura caja), 7 (orden menú), 9 (notas en ticket).
+Pendiente de Diana: **9 (notas en ticket)** — `Sale.notes` existe en schema, falta capturarlo en POS y mostrarlo en el ticket.
+
+### Extra entregado 2026-05-31
+- **Reporte xlsx de inventario** (`GET /api/reports/inventory`, exceljs): stock y mínimo por sucursal (dinámico), última venta, costo, precio. Botón en /inventario (OWNER/MANAGER).
+- **Fix de descuento de stock**: atómico (sin race), sin negativos, bloquea sobreventa (409). Tests.
+- **Cajero Demo** en prod: PIN 1111, sucursal Explanada (el cajero seed viejo con PIN 1111 quedó desactivado para evitar colisión).
+- Nuevos modelos: `EmailLog`. Nuevo enum value: `CashMovementType.EXPENSE`. Nuevo campo: `Tenant.email`.
 
 ---
 
