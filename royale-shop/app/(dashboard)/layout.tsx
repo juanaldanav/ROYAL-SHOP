@@ -22,6 +22,7 @@ import {
   Plus,
   ChevronsUpDown,
   Settings,
+  Wallet,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -70,6 +71,14 @@ const NAV_ALL: NavItem[] = [
 const NAV_CASHIER: NavItem[] = [
   { href: "/ventas", label: "Mis Ventas",  icon: ShoppingCart },
   { href: "/cortes", label: "Mis Turnos",  icon: Receipt },
+]
+
+// Bottom nav exclusivo del CASHIER — 3 accesos fijos, visibles en todo momento
+// (móvil e iPad). El cajero siempre puede volver al POS desde aquí.
+const CASHIER_BOTTOM_NAV: NavItem[] = [
+  { href: "/pos",    label: "Caja",       icon: ShoppingCart },
+  { href: "/ventas", label: "Mis Ventas", icon: Receipt },
+  { href: "/cortes", label: "Mi Turno",   icon: Wallet },
 ]
 
 function navForRole(role: string): NavItem[] {
@@ -207,6 +216,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user?.id])
 
   const allNav = navForRole(user?.role ?? "")
+  const isCashier = user?.role === "CASHIER"
 
   function handleLogout() {
     logout()
@@ -221,8 +231,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-muted/40">
 
-      {/* ── Desktop Sidebar (md+) ── */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 fixed left-0 top-0 h-screen bg-white z-30">
+      {/* ── Desktop Sidebar (md+) — oculto para CASHIER (usa bottom nav fijo) ── */}
+      <aside className={cn(
+        "flex-col w-60 shrink-0 fixed left-0 top-0 h-screen bg-white z-30",
+        isCashier ? "hidden" : "hidden md:flex"
+      )}>
         <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E8E8E8]">
           <Image src={tenantLogoSrc(tenant?.logoUrl)} alt={tenant?.name ?? "Royal Shop"} width={34} height={34} className="rounded-full shrink-0 object-cover" unoptimized />
           <span className="font-bold text-base">{tenant?.name ?? "Royal Shop"}</span>
@@ -264,7 +277,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* ── Main area ── */}
-      <div className="flex flex-col flex-1 md:ml-60">
+      <div className={cn("flex flex-col flex-1", !isCashier && "md:ml-60")}>
 
         {/* ── Header ── */}
         <header className="sticky top-0 z-20 flex items-center gap-3 px-4 h-14 bg-background border-b shadow-sm">
@@ -334,12 +347,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* ── Page Content ── */}
-        <main className="flex-1 pb-20 md:pb-0">
+        {/* CASHIER: padding inferior siempre (bottom nav fijo en todo breakpoint) */}
+        <main className={cn("flex-1", isCashier ? "pb-20" : "pb-20 md:pb-0")}>
           <div className="max-w-5xl mx-auto px-4 py-6">{children}</div>
         </main>
       </div>
 
-      {/* ── Mobile Bottom Nav ── */}
+      {/* ── CASHIER Bottom Nav — fijo, visible en TODO breakpoint (móvil + iPad) ── */}
+      {isCashier && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t flex items-center h-16">
+          {CASHIER_BOTTOM_NAV.map((item) => (
+            <NavTab key={item.href} {...item} />
+          ))}
+        </nav>
+      )}
+
+      {/* ── Mobile Bottom Nav (OWNER/MANAGER) ── */}
+      {!isCashier && (
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background border-t flex items-center h-16">
         {/* Left: Dashboard + Ventas */}
         {leftNav.map((item) => (
@@ -374,6 +398,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span>Más</span>
         </button>
       </nav>
+      )}
 
       {/* ── "Hacer Venta" Overlay ── */}
       {ventaOpen && (
