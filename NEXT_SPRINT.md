@@ -90,6 +90,17 @@ correctamente (con cámara/QR según RF-05).
 - Nuevo rol `SUPERADMIN` (enum `UserRole`).
 - Toggle activo/inactivo por tenant, alta de negocios desde UI (envuelve `create-tenant`).
 
+### 7. Páginas de error propias + diagnosticar "Reload to try again"
+- **No existe** `error.tsx` ni `not-found.tsx` → cuando algo truena sale el overlay
+  crudo de Next ("Reload to try again, or go back"). Agregar páginas propias en
+  español con botón "Recargar" (UX recuperable y amable).
+- Diagnosticar los crashes reales: la app **no usa Server Actions** (cero `"use server"`),
+  así que el error `Failed to find Server Action` visto en prod es ruido (bot/petición
+  suelta o pestaña vieja tras redeploy), no un flujo de usuario.
+- **Pendiente de info:** capturar el caso concreto (qué pantalla + qué acción) que
+  mostraba "Reload to try again" para reproducir y leer el stack en
+  `docker logs royaleshop-pos`. Sin el repro no se puede confirmar que esté resuelto.
+
 ---
 
 ## 🔧 Pendiente operativo
