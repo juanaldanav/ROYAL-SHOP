@@ -14,6 +14,7 @@ model Tenant {
   name      String
   slug      String   @unique
   phone     String?
+  email     String?  // Correo del negocio = remitente SMTP (Req 5). Sin default.
   logoUrl   String?
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -29,6 +30,24 @@ model Tenant {
   branchStocks  BranchStock[]
   transfers     Transfer[]
   cashMovements CashMovement[]
+  emailLogs     EmailLog[]
+}
+
+// ─── EMAIL LOG (auditoría de envíos de ticket por correo) ────────────────────
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  to        String
+  subject   String
+  saleId    String?
+  status    String   // SENT | FAILED
+  error     String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
 }
 
 // ─── BRANCH ───────────────────────────────────────────────────────────────────

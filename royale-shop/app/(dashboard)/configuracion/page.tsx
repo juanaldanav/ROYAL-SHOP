@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { Save, Upload, Building2, Phone, Link2, RefreshCw, MessageCircle, CheckCircle2, WifiOff, Loader2 } from "lucide-react"
+import { Save, Upload, Building2, Phone, Mail, Link2, RefreshCw, MessageCircle, CheckCircle2, WifiOff, Loader2 } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -25,6 +25,7 @@ type TenantConfig = {
   name: string
   slug: string
   phone: string | null
+  email: string | null
   logoUrl: string | null
 }
 
@@ -42,7 +43,7 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [form, setForm] = useState({ name: "", phone: "", logoUrl: "" })
+  const [form, setForm] = useState({ name: "", phone: "", email: "", logoUrl: "" })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── WhatsApp status ────────────────────────────────────────────────────────
@@ -87,7 +88,7 @@ export default function ConfiguracionPage() {
       if (!res.ok) throw new Error()
       const data: TenantConfig = await res.json()
       setConfig(data)
-      setForm({ name: data.name, phone: data.phone ?? "", logoUrl: data.logoUrl ?? "" })
+      setForm({ name: data.name, phone: data.phone ?? "", email: data.email ?? "", logoUrl: data.logoUrl ?? "" })
     } catch {
       toast.error("No se pudo cargar la configuración")
     } finally {
@@ -132,7 +133,7 @@ export default function ConfiguracionPage() {
       const res = await apiFetch("/api/tenant", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, phone: form.phone, logoUrl: form.logoUrl }),
+        body: JSON.stringify({ name: form.name, phone: form.phone, email: form.email, logoUrl: form.logoUrl }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -325,6 +326,26 @@ export default function ConfiguracionPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Aparece en tickets y comunicaciones a clientes.
+              </p>
+            </div>
+
+            {/* ── Correo del negocio (remitente SMTP) ── */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="flex items-center gap-1.5">
+                <Mail className="size-3.5 text-muted-foreground" />
+                Correo del negocio (remitente)
+              </Label>
+              <Input
+                id="email"
+                className="min-h-[44px]"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="ventas@minegocio.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se usa como remitente para enviar el ticket por correo al cliente.
+                Si se deja vacío, no se envían correos.
               </p>
             </div>
 

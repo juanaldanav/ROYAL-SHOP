@@ -4,6 +4,7 @@ import { getUserRole } from "@/lib/rbac"
 import { NextRequest, NextResponse } from "next/server"
 import { PaymentMethod } from "@/app/generated/prisma/client"
 import { generateFolio } from "@/lib/format"
+import { sendSaleTicketEmail } from "@/lib/mailer"
 
 // Error de negocio: no hay stock suficiente (o no existe row) para vender.
 // Se lanza dentro de la transacción → rollback → 409 al cliente.
@@ -220,6 +221,13 @@ export async function POST(req: NextRequest) {
 
       return newSale
     })
+
+    // Envío automático del ticket por correo (Req 5). No-op si SMTP o el correo
+    // del negocio no están configurados, o si la venta no trae customerEmail.
+    // Nunca rompe la venta (sendSaleTicketEmail no lanza).
+    if (customerEmail) {
+      await sendSaleTicketEmail(sale.id, tenantId)
+    }
 
     return NextResponse.json(sale, { status: 201 })
   } catch (error) {
