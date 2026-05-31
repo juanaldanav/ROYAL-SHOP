@@ -69,16 +69,17 @@ const NAV_ALL: NavItem[] = [
 ]
 
 const NAV_CASHIER: NavItem[] = [
-  { href: "/ventas", label: "Mis Ventas",  icon: ShoppingCart },
   { href: "/cortes", label: "Mis Turnos",  icon: Receipt },
+  { href: "/ventas", label: "Mis Ventas",  icon: ShoppingCart },
 ]
 
 // Bottom nav exclusivo del CASHIER — 3 accesos fijos, visibles en todo momento
 // (móvil e iPad). El cajero siempre puede volver al POS desde aquí.
+// Orden: Caja primero (acción principal), luego Mi Turno, luego Mis Ventas (Req 7).
 const CASHIER_BOTTOM_NAV: NavItem[] = [
   { href: "/pos",    label: "Caja",       icon: ShoppingCart },
-  { href: "/ventas", label: "Mis Ventas", icon: Receipt },
   { href: "/cortes", label: "Mi Turno",   icon: Wallet },
+  { href: "/ventas", label: "Mis Ventas", icon: Receipt },
 ]
 
 function navForRole(role: string): NavItem[] {
