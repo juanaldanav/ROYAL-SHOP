@@ -1,178 +1,245 @@
-# ROYALE SHOP POS — Progress Tracker
+# Royale Shop — Estado del Proyecto
 
-> Última actualización: 2026-05-24
-
-## Estado General
-
-| Día | Objetivo | Estado |
-|-----|----------|--------|
-| 1 | Infra + Stack + CRUD Catálogo | ✅ Completo |
-| 2 | Vista POS Cajero | ⏳ Pendiente |
-| 3 | Ventas + Corte de Caja | ⏳ Pendiente |
-| 4 | Tickets WhatsApp | ⏳ Pendiente |
-| 5 | Inventario + CSV Import | ⏳ Pendiente |
-| 6 | Docker Compose prod + Deploy VM | ⏳ Pendiente |
-| 7 | Buffer / Pulido / Tests | ⏳ Pendiente |
+> Actualizado: 2026-05-25
+> Propósito: punto de referencia si se cierra la terminal para no perder contexto.
 
 ---
 
-## ✅ Día 1 — Completado
+## ✅ FUNCIONA (listo para producción)
 
-### Infraestructura Local
-- [x] Backup `D:\lighthouse-bot-backup-20260523.zip`
-- [x] Directorio limpio — solo `royale-shop/` y `.git`
-- [x] CLAUDE.md con stack, reglas y requisitos
+### Core POS
+- **POS `/pos`**: grid de productos+servicios, carrito lateral, cobro en 3 pasos, métodos de pago (efectivo/tarjeta/transferencia/mixto), cambio calculado, descuento opcional, barra inferior fija con total al tener ítems en carrito
+- **Escáner de códigos**: `html5-qrcode` integrado, cámara nativa, fallback manual
+- **Cortes de caja**: abrir con saldo inicial, cerrar con conteo físico, diferencia automática, estado OPEN/CLOSED, enlazado a ventas
+- **Stock**: descuenta inventario automáticamente al cerrar venta (transaccional, sin negativos)
+- **Inventario `/inventario`**: edición inline de stock, CSV import, alertas de stock bajo, filtros
 
-### GCP VM (`soporte.lamarque.mx`)
-- [x] `/opt/lighthouse-bot` eliminado
-- [x] Docker PostgreSQL 16 (`royaleshop-postgres`) corriendo en `127.0.0.1:5432`
-- [x] 9 tablas creadas y verificadas
-- [x] Seed: Tenant / Branch / User de desarrollo
-- [x] **RLS activado en 9/9 tablas** + 9 políticas por tenant
+### Dashboard y Reportes
+- **Dashboard `/dashboard`**: KPIs hoy vs ayer (ventas, tickets, ticket prom.), semana, mes, utilidad, métodos de pago del día, desglose por sucursal (cuando hay +1 sucursal)
+- **Ventas `/ventas`**: historial con filtro de fecha SERVER-SIDE (límite 200), búsqueda por texto, detalle de venta, vista de ticket con logo SVG
+- **Reportes `/reportes`**: estadísticas por período (hoy/7d/30d), por sucursal, top productos
 
-### Stack Next.js
-- [x] Next.js 16.2.6 + React 19 + Tailwind v4 + shadcn v4
-- [x] Prisma 7.8.0 con `@prisma/adapter-pg`
-- [x] Schema aprobado: 9 modelos, tenant_id en todo
-- [x] `lib/db.ts` singleton con PrismaPg adapter
-- [x] `lib/format.ts` — formatMXN, generateFolio, formatDate
+### Auth y Seguridad
+- **Login `/login`**: PIN de 4 dígitos, selector de sucursal, teclado físico + touch, logo Stitch, fondo negro, PIN dots dorados
+- **Roles**: OWNER / MANAGER / CASHIER (sesión en localStorage, headers x-tenant-id/x-branch-id/x-user-id)
+- **Multi-tenant**: `tenantId` en todas las tablas transaccionales, `getSession()` en todas las rutas API
 
-### Seguridad
-- [x] `suppressHydrationWarning` — fix extensión Heurio en browser
-- [x] `middleware.ts` — CORS: solo origenes permitidos en `/api/*`
-- [x] `next.config.ts` — Security headers:
-  - Content-Security-Policy (dev/prod diferenciados)
-  - Strict-Transport-Security (2 años)
-  - X-Frame-Options: SAMEORIGIN
-  - X-Content-Type-Options: nosniff
-  - Referrer-Policy: strict-origin-when-cross-origin
-  - Permissions-Policy: camera=(self) — necesario para QR scanner
-- [x] **PostgreSQL RLS** en todas las tablas con datos de usuario
+### Diseño
+- **Design system**: DM Sans (fuente correctamente aplicada via `--font-sans`), dorado `#D4A820`, negro `#0A0A0A`, fondo `#F7F7F7`, cards `bg-white rounded-2xl` sin bordes visibles
+- **Logo**: imagen Stitch (diamante dorado en blob negro) en `public/logo.png`, componente en `components/ui/royale-logo.tsx`
+- **Mobile**: bottom nav, sheet "Más" sin doble X (`showCloseButton={false}`), carrito fijo en POS
+- **Sidebar**: wave SVG blanco→negro, botón "Ir al POS" dorado, punto indicador dorado en nav activo
 
-### UI — Dashboard
-- [x] Header sticky mobile-first (hamburger → Sheet drawer)
-- [x] Navegación: Dashboard / Productos / Servicios / Categorías / Ventas / Cortes
-- [x] CRUD Productos — tabla + dialog create/edit + toggle activo
-- [x] CRUD Servicios — tabla + dialog create/edit + toggle activo
-- [x] CRUD Categorías — tabla + dialog create
-- [x] `/pos` — scaffold (Día 2)
+### CRUD Admin
+- Productos, Servicios, Categorías, Cajeros, Sucursales — CRUD completo con shadcn dialogs
+- Imágenes de producto: upload + servidas via `/api/uploads/` (Docker volume persistente)
 
-### API Routes
-- [x] `GET/POST /api/products`
-- [x] `PATCH/DELETE /api/products/[id]`
-- [x] `GET/POST /api/services`
-- [x] `PATCH/DELETE /api/services/[id]`
-- [x] `GET/POST /api/categories`
-- [x] `POST /api/seed` (solo dev)
+### Configuración del negocio (`/configuracion`)
+- Nombre del negocio, teléfono, logo — guardados en DB, reflejados en tiempo real en toda la app
+- Logo y nombre dinámicos en sidebar, header y sheet móvil
+- WhatsApp QR visible directamente desde `/configuracion` (sin SSH)
+
+### Tickets
+- Ticket en pantalla muestra nombre real, teléfono y logo del negocio (desde DB)
+- WhatsApp auto-send al cobrar: si se captura teléfono del cliente, el ticket se envía automáticamente
+- Formato texto con folio, fecha, sucursal, items, total y método de pago
+
+### Base de Datos (VM: soporte.lamarque.mx)
+- Container: `royaleshop-postgres`, DB: `royaleshop`, user: `royale`
+- Sucursales: `Explanada` (clx_dev_branch_001), `Sendero` (clx_dev_branch_002)
+- TenantId único MVP: `clx_dev_tenant_001`
+- Acceso: `ssh noreply@soporte.lamarque.mx` → `sudo docker exec royaleshop-postgres psql -U royale royaleshop`
 
 ---
 
-## ⏳ Día 2 — POS View (Cajero)
+## 🚧 PARCIAL (funciona pero incompleto)
 
-### Objetivo
-Vista `/pos` estilo PULPOS: cobrar en 3 clics.
-
-### Tareas
-- [ ] Grid de productos/servicios con categorías como tabs horizontales
-- [ ] Carrito: Sheet lateral (tablet) / bottom drawer (mobile)
-- [ ] Resumen de venta: subtotal, descuento, total
-- [ ] Modal de cobro: efectivo / tarjeta / transferencia
-- [ ] Generar folio (`VTA-YYYYMMDD-XXXX`)
-- [ ] Botón "Escanear" — placeholder (html5-qrcode Día 5)
-- [ ] Buscar producto por nombre/SKU
-- [ ] API `POST /api/sales` — crear venta y descontar stock
+| Feature | Avance | Qué falta |
+|---|---|---|
+| Reportes CSV export | 60% | Botón de descarga CSV — EN PAUSA |
+| PDF de ticket | 100% | `lib/generate-ticket-pdf.tsx` + `/send-file` en WA svc — deployado |
+| Admin reset endpoint | dev-only | Acotar por tenantId, no borrar todo |
 
 ---
 
-## ⏳ Día 3 — Ventas + Corte de Caja
+## 🗂️ BACKLOG ACTIVO — Orden de ejecución
 
-- [ ] `GET /api/sales` — historial paginado
-- [ ] `GET /api/cash-cuts` / `POST /api/cash-cuts`
-- [ ] UI: lista de ventas del día
-- [ ] UI: abrir / cerrar corte de caja
-- [ ] Dashboard: métricas (ventas hoy, semana, mes)
-
----
-
-## ⏳ Día 4 — Tickets WhatsApp
-
-- [ ] Servicio aislado `services/whatsapp/` (Node.js + whatsapp-web.js)
-- [ ] Generar ticket texto formateado (o PDF con @react-pdf/renderer)
-- [ ] `POST /api/tickets/whatsapp` → envía al número del cliente
-- [ ] Fallback: download PDF
+### ✅ FASE 1: Protección de API (COMPLETADA)
+- `assertManagerOrOwner` en: `inventory/[id]` PATCH, `transfers/` POST, `transfers/[id]` PATCH, `products/upload` POST
+- Filtro `branchId` forzado para CASHIER en GET: ventas, inventario, reportes
+- Cash-cuts: CASHIER solo opera sobre su propia sucursal (`branchId` de sesión)
 
 ---
 
-## ⏳ Día 5 — Inventario + CSV
+### 🔲 FASE 2: Cancelaciones Post-Corte
+**Backend:**
+- Nuevo modelo `CashMovement` en Prisma (tipo REFUND/EXPENSE, ligado a `CashCut` activo y `Sale` cancelada)
+- `POST /api/sales/[id]/cancel` con `$transaction`:
+  1. Marca `Sale` como `CANCELLED` (soft delete, conserva folio)
+  2. Restaura stock en `BranchStock` por cada `SaleItem` con `productId`
+  3. Si el `CashCut` de la venta está `CLOSED` → crea `CashMovement(REFUND)` en el corte ACTUAL abierto
+  4. Si el `CashCut` está `OPEN` → solo marca cancelada (el cierre ya excluye status ≠ COMPLETED)
+- Actualizar cálculo de `expectedCash` al cerrar corte para descontar `CashMovements` de tipo REFUND
+- Autorización: requiere PIN de MANAGER o OWNER (verificado en DB)
+- Tests unitarios validando la regla contable post-corte
 
-- [ ] Página `/inventario` con stock en tiempo real
-- [ ] Alertas de stock mínimo
-- [ ] Upload CSV para carga masiva de productos
-- [ ] Traspaso entre sucursales (QR verification con html5-qrcode)
+**UI (PASO 2):**
+- Vista/modal "Buscador de Folios" en `/ventas`
+- Detalle de ticket + botón rojo "Cancelar Ticket"
+- Modal de autorización con PIN de GERENTE/OWNER
+- Badge `CANCELADO` en la venta tras confirmar
+
+**Reportes BI (PASO 3):**
+- Dashboard: separar Ventas Brutas / Devoluciones / Ventas Netas
+- Mobile-First
 
 ---
 
-## ⏳ Día 6 — Deploy en VM
-
-- [ ] `docker-compose.yml` producción (Next.js + PostgreSQL)
-- [ ] `Dockerfile` para Next.js app
-- [ ] Apache2 VirtualHost → proxy a Next.js :3000
-- [ ] Variables de entorno en VM (`.env.production`)
-- [ ] First deploy y smoke test
+### 🔲 FASE 3: Cuadre Físico de Caja
+- Validar vouchers de tarjeta vs monto de tarjeta en sistema al cerrar turno
+- Validar efectivo físico vs efectivo esperado (ya parcialmente implementado)
+- UI de conteo físico billetes/monedas
 
 ---
 
-## Notas Técnicas
+### 🔲 FASE 4: UX y Validaciones
+- Bloquear excedente en pago con tarjeta (no puede pagar más de lo necesario)
+- Dropdown multi-sucursal para OWNER en el header (ver datos de cualquier sucursal)
+- Asignar múltiples sucursales a usuarios en Admin
 
-### RLS (Row Level Security)
-- **Estado:** Habilitado en 9/9 tablas, 9 políticas `FOR ALL TO PUBLIC`
-- **Mecánica:** `royale` (owner) bypasa RLS por defecto en PostgreSQL
-- **Protección real:** cualquier rol no-owner que acceda directo a la BD solo ve datos del tenant con `app.current_tenant` seteado
-- **TODO post-MVP:** crear `royale_app` (non-owner) + Prisma `$extends` que ejecute `SET LOCAL app.current_tenant = tenantId` antes de cada query → RLS estricto en capa de app también
+---
 
-### CORS
-- Dev: `localhost:3000`, `localhost:3001`
-- Prod: `NEXT_PUBLIC_APP_URL` (default: `https://soporte.lamarque.mx`)
-- Requests sin `Origin` header → permitidos (same-origin, herramientas CLI)
-- Origins no permitidos → 403
+### 🔲 FASE 5: Producción
+- Cambiar typo "royale" → "Royal" en textos visibles al usuario
+- Validar Logo PWA en dispositivos reales
+- Script `seed-clean.ts` para demo reproducible
 
-### SSH Tunnel (dev local)
-```powershell
-Start-Job -ScriptBlock { ssh -N -L 5432:127.0.0.1:5432 noreply@soporte.lamarque.mx }
+---
+
+## 🔧 DEUDA TÉCNICA (no urgente)
+- **PIN en texto plano.** Los PINs de cajeros/owner se guardan sin hashear en
+  DB; el login (`/api/auth/login`) compara en texto plano. Aceptable para MVP.
+  Antes de onboarding masivo de clientes: hashear con bcrypt en login + seed +
+  `scripts/create-tenant.ts` (migrar los PINs existentes). No urgente hoy.
+
+## ⏸️ EN PAUSA
+- Reportes CSV export (botón falta, lógica está al 60%)
+
+## 📅 EN EL RADAR (siguiente sprint)
+
+### PDF de ticket para WhatsApp ✅ COMPLETADO
+- `lib/generate-ticket-pdf.tsx`: template @react-pdf con logo, folio, items, totales, método de pago
+- `services/whatsapp/server.js`: `POST /send-file` con `MessageMedia` de whatsapp-web.js
+- `app/api/tickets/whatsapp/route.ts`: POST acepta `{ phone, saleId }`, genera PDF en servidor, envía vía WhatsApp; fallback a texto si falla
+- POS: simplificado — pasa `saleId` al backend, que maneja todo
+
+### Cancelación de ventas con PIN
+- Lógica de cancelación ya implementada en backend (`PATCH /api/sales/[id]`)
+- Falta: test del flujo completo, restauración de stock, refund en corte cerrado
+
+### Detalle de corte cerrado (ver ventas incluidas)
+- En `/cortes`, al ver un corte CLOSED poder expandir y ver las ventas que lo componen
+
+### Email SMTP
+- Envío de ticket por correo al cliente (`nodemailer` + Gmail app password)
+
+## 🐛 BUGS CORREGIDOS (sesión 2026-05-31)
+
+| Bug | Fix aplicado |
+|---|---|
+| Sistema NO multitenant: login hardcodeaba `DEV_TENANT_ID` | `/api/auth/login` ahora resuelve el tenant desde `branchId` (cuid global único) — sin tenantId fijo |
+| Selector de sucursal en /login solo mostraba el tenant DEV | Nuevo endpoint público `GET /api/auth/branches` lista sucursales de todos los negocios; chip muestra el negocio cuando hay >1 tenant |
+| `/configuracion`: polling WhatsApp con `clearInterval` dentro del updater de estado (impuro) + fetch infinito | Reescrito: `fetchWAStatus` devuelve `ready`; el `setInterval` se detiene al conectar; cleanup seguro |
+| `/configuracion`: preview de logo daba 404 con URLs legacy `/uploads/...` | `resolveLogoSrc` aplica el mismo criterio que el sidebar (`/uploads/`→`/api/uploads/`) |
+| `/configuracion`: `export const dynamic = "force-dynamic"` en archivo `"use client"` (no-op) | Eliminado |
+
+**Nuevos archivos:** `scripts/create-tenant.ts` (onboarding), `app/api/auth/branches/route.ts` (selector login), `__tests__/auth/login-multitenant.test.ts`.
+
+---
+
+## 🐛 BUGS CORREGIDOS (sesión 2026-05-25)
+
+| Bug | Fix aplicado |
+|---|---|
+| WhatsApp spinner infinito en /configuracion | URL incorrecta `/status` (404) + sin manejo de error → `wa` nunca salía de `null` |
+| Logo y nombre hardcodeados en layout | Layout ahora fetcha `/api/tenant` y usa valores de DB |
+| Ticket dice "ROYALE SHOP" | `TicketView` recibe `tenant.name` desde DB |
+| Ticket sin teléfono del negocio | `TicketView` muestra `tenant.phone` si está configurado |
+| Imágenes de producto no se muestran | Ruta `/api/uploads/[...path]` sirve archivos desde filesystem |
+| URLs de imágenes antiguas `/uploads/...` rotas | Helper `resolveUploadUrl` convierte a `/api/uploads/...` en frontend |
+| Folio en toast venía del cliente, no del servidor | `submitSale` ahora lee `saleData.folio` de la respuesta |
+
+---
+
+## 🐛 BUGS CORREGIDOS EN ESTA SESIÓN
+
+| Bug | Fix aplicado |
+|---|---|
+| Font Times New Roman | `variable: "--font-sans"` en layout.tsx + `font-sans` en `<html>` |
+| Doble X en Sheet "Más" | `showCloseButton={false}` en SheetContent del layout |
+| `SelectValue` render-prop inválido | Reemplazado con `placeholder` prop |
+| `sales/[id]` usaba DEV_TENANT_ID | Reemplazado con `getSession(req)` |
+| `services/[id]` sin getSession + sin try/catch | Corregido |
+| `categories/[id]` WHERE sin tenantId | Añadido `tenantId` en update/delete |
+| Ventas: filtro fecha client-side sobre 50 registros | Server-side con límite 200 |
+| Sucursal "Sucursal Centro" | Renombrado a "Explanada" en DB |
+| Sucursal "Sucursal Sendero" | Renombrado a "Sendero" en DB |
+| `/logo.jpg` no existía | Copiado logo Stitch a `public/logo.png`, referencias actualizadas |
+| Logo SVG manual no coincidía con Stitch | Reemplazado con imagen real del handoff |
+
+---
+
+## 🗺️ ENTORNO DE PRODUCCIÓN
+
 ```
-Necesario antes de `npx prisma db push` o `npx prisma generate`.
+VM:    soporte.lamarque.mx (GCP Ubuntu 22.04)
+SSH:   ssh noreply@soporte.lamarque.mx
+App:   Docker :3000 (reverse proxy Apache2)
+DB:    sudo docker exec royaleshop-postgres psql -U royale royaleshop
 
-### Prisma 7 Quirks
-- Import: `@/app/generated/prisma/client` (NO `@/app/generated/prisma`)
-- Client: `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })`
-- datasource URL va en `prisma.config.ts`, NO en `schema.prisma`
-- `schema.prisma` SÍ necesita `datasource db { provider = "postgresql" }` (sin url)
+Deploy (cuando esté aprobado):
+  sudo docker compose -f docker-compose.prod.yml up -d --build
+```
 
-### Tailwind v4 Quirks
-- Sin `tailwind.config.js` — configuración via CSS en `globals.css`
-- `@import "tailwindcss"` en vez de `@tailwind base/components/utilities`
-- `@theme inline { }` para CSS variables
+### 🆕 Alta de un negocio nuevo (onboarding multitenant)
+
+Cada negocio = un `Tenant` con su propio `tenantId` (cuid). Un solo deployment
+sirve a todos. Para dar de alta un cliente nuevo:
+
+```bash
+# Local o dentro del contenedor app
+cd royale-shop
+npm run create-tenant
+```
+
+El script (`scripts/create-tenant.ts`) pregunta:
+1. Nombre del negocio
+2. Teléfono (opcional)
+3. Nombre del usuario OWNER
+4. PIN del OWNER (4 dígitos)
+5. Nombre de la primera sucursal
+
+Y crea **en una sola transacción**: `Tenant` (slug único autogenerado) +
+`Branch` + `User` OWNER (email único autogenerado `<slug>-owner@royal.shop`).
+
+Dentro del contenedor en la VM:
+```bash
+sudo docker compose -f docker-compose.prod.yml exec app npm run create-tenant
+```
+
+Luego el dueño entra en `/login`, elige la sucursal de su negocio (el selector
+lista las sucursales de todos los negocios; muestra el nombre del negocio cuando
+hay más de uno) y teclea su PIN.
+
+> ⚠️ Deuda técnica: el PIN se guarda en **texto plano** (el login compara en
+> texto plano). Migrar a hash (bcrypt) en login + seed + este script es trabajo
+> post-MVP.
 
 ---
 
-## GCP VM — Snapshot actual
+## 📦 STACK
 
-```
-Host:      soporte.lamarque.mx
-OS:        Ubuntu 22.04
-RAM:       3.8GB / 1.3GB used / 2.2GB free
-Disk:      29GB / 17GB used / 13GB free
-
-Servicios activos:
-  apache2     → :80, :443 (Omada proxy + SSL Let's Encrypt)
-  jsvc        → :8043, :8088, :8843 (Omada Controller)
-  mariadbd    → :3306 (internal)
-  mongod      → :27217 (internal)
-  sshd        → :22
-
-Docker:
-  royaleshop-postgres  → 127.0.0.1:5432 (postgres:16-alpine)
-  
-Pendiente deploy:
-  royaleshop-nextjs    → 127.0.0.1:3000 (Día 6)
-```
+- Next.js 16.2.6 · TypeScript · Tailwind v4 · shadcn/ui (base-ui)
+- Prisma 7.8.0 · PostgreSQL 16
+- DM Sans (Google Fonts) · html5-qrcode
+- Pendientes: @react-pdf/renderer · nodemailer · whatsapp-web.js
