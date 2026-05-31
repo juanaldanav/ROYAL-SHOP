@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { AlertTriangle, Upload, RefreshCw, Package, Minus, Plus, Check, X } from "lucide-react"
+import { AlertTriangle, Upload, RefreshCw, Package, Minus, Plus, Check, X, Download } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { useSession } from "@/contexts/session-context"
 import { Button } from "@/components/ui/button"
@@ -189,6 +189,8 @@ function StockCell({
 export default function InventarioPage() {
   const { user } = useSession()
   const isOwner = user?.role === "OWNER"
+  const canReport = user?.role === "OWNER" || user?.role === "MANAGER"
+  const [downloading, setDownloading] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -247,6 +249,32 @@ export default function InventarioPage() {
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length
 
+  async function handleDownloadReport() {
+    setDownloading(true)
+    try {
+      const res = await apiFetch("/api/reports/inventory")
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error ?? "No se pudo generar el reporte")
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `inventario_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success("Reporte descargado")
+    } catch {
+      toast.error("Error al descargar el reporte")
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const filtered = products
     .filter((p) => (filter === "low" ? p.stock <= p.minStock : true))
     .filter((p) => {
@@ -267,16 +295,29 @@ export default function InventarioPage() {
             )}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          className="min-h-[44px] min-w-[44px]"
-          onClick={() => { setRefreshing(true); fetchInventory() }}
-          disabled={refreshing}
-          aria-label="Actualizar"
-        >
-          <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-        </Button>
+        <div className="flex items-center gap-2">
+          {canReport && (
+            <Button
+              variant="outline"
+              className="min-h-[44px]"
+              onClick={handleDownloadReport}
+              disabled={downloading || loading}
+            >
+              <Download className={`size-4 mr-2 ${downloading ? "animate-pulse" : ""}`} />
+              <span className="hidden sm:inline">{downloading ? "Generando..." : "Reporte xlsx"}</span>
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="min-h-[44px] min-w-[44px]"
+            onClick={() => { setRefreshing(true); fetchInventory() }}
+            disabled={refreshing}
+            aria-label="Actualizar"
+          >
+            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {/* CSV Import — solo OWNER */}
