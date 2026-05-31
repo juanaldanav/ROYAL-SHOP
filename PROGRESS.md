@@ -1,7 +1,19 @@
 # Royale Shop — Estado del Proyecto
 
-> Actualizado: 2026-05-25
+> Actualizado: 2026-05-31
 > Propósito: punto de referencia si se cierra la terminal para no perder contexto.
+> Siguiente sprint y pendientes operativos: ver `NEXT_SPRINT.md`.
+
+## 🏁 Sprint 31 Mayo 2026 — COMPLETO
+
+Live en `royalshop.lamarque.mx`:
+- **9/9 requerimientos de Diana** (ver tabla más abajo).
+- Multitenant real sin hardcode + `npm run create-tenant`.
+- Fix de descuento de stock atómico (sin negativos, bloquea sobreventa).
+- Reporte de inventario `.xlsx` descargable (OWNER/MANAGER).
+- `/configuracion` reparado.
+- SMTP listo en código — **faltan credenciales en el `.env` de prod**.
+- Cajero Demo: PIN `1111`, sucursal Explanada.
 
 ---
 
