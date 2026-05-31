@@ -155,6 +155,16 @@
 
 **Nuevos archivos:** `scripts/create-tenant.ts` (onboarding), `app/api/auth/branches/route.ts` (selector login), `__tests__/auth/login-multitenant.test.ts`.
 
+### Requerimientos de Diana — entregados 2026-05-31
+
+| # | Req | Estado | Detalle |
+|---|-----|--------|---------|
+| 1 | Footer cajero | ✅ | Bottom nav dedicado y fijo para CASHIER (Caja/Mis Ventas/Mi Turno), visible en móvil e iPad; siempre vuelve al POS. Sidebar oculto para cajero. OWNER/MANAGER sin cambios. |
+| 8 | Mis Turnos | ✅ | `/cortes` para CASHIER = "Mi Turno": solo turno activo, estado vacío con "Abrir Turno", sin historial ajeno. Historial completo solo OWNER/MANAGER. |
+| 3 | Tablas mobile | ✅ | Mis Ventas y Cortes: cards en móvil (<sm), tabla en sm+. Items del detalle compactados. Sin scroll horizontal. |
+
+Pendientes de Diana: 2 (header), 4 (salidas efectivo + razón), 5 (SMTP — post-demo), 6 (modal apertura caja), 7 (orden menú), 9 (notas en ticket).
+
 ---
 
 ## 🐛 BUGS CORREGIDOS (sesión 2026-05-25)
