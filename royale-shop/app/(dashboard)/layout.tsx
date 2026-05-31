@@ -285,8 +285,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Image src={tenantLogoSrc(tenant?.logoUrl)} alt={tenant?.name ?? "Royal Shop"} width={30} height={30} className="rounded-full shrink-0 object-cover" unoptimized />
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span className="font-bold text-base truncate">{tenant?.name ?? "Royal Shop"}</span>
-            <span className="text-muted-foreground hidden sm:inline text-sm">·</span>
-            <span className="text-sm text-muted-foreground hidden sm:inline truncate">{title}</span>
+            <span className="text-muted-foreground hidden md:inline text-sm">·</span>
+            <span className="text-sm text-muted-foreground hidden md:inline truncate">{title}</span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
