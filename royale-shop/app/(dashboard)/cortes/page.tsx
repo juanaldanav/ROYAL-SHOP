@@ -291,8 +291,68 @@ export default function CortesPage() {
         )
       )}
 
-      {/* Table */}
-      <Card>
+      {/* ── Móvil (<sm): lista de cards — sin scroll horizontal ── */}
+      <div className="sm:hidden space-y-2">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-4"><Skeleton className="h-20 w-full" /></Card>
+          ))
+        ) : cuts.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-muted-foreground">
+            Sin cortes registrados. Abre el primero para empezar.
+          </Card>
+        ) : (
+          cuts.map((cut) => {
+            const diff = cut.difference !== null ? parseFloat(cut.difference) : null
+            return (
+              <Card key={cut.id} className="p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-medium">{formatDateTime(cut.openedAt).split(",")[0]}</span>
+                  <Badge variant={cut.status === "OPEN" ? "default" : "secondary"}>
+                    {cut.status === "OPEN" ? "Abierto" : "Cerrado"}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Saldo inicial</p>
+                    <p className="font-mono">{formatMXN(parseFloat(cut.openingBalance))}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Ventas</p>
+                    <p>{cut._count.sales}</p>
+                  </div>
+                  {cut.totalSales !== null && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total ventas</p>
+                      <p className="font-mono">{formatMXN(parseFloat(cut.totalSales))}</p>
+                    </div>
+                  )}
+                  {diff !== null && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Diferencia</p>
+                      <p className={diff >= 0 ? "text-green-600 font-mono" : "text-destructive font-mono"}>
+                        {diff >= 0 ? "+" : ""}{formatMXN(diff)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {cut.status === "OPEN" && (
+                  <Button
+                    variant="outline"
+                    className="w-full min-h-[44px] mt-3"
+                    onClick={() => openCloseCutDialog(cut)}
+                  >
+                    Cerrar Corte
+                  </Button>
+                )}
+              </Card>
+            )
+          })
+        )}
+      </div>
+
+      {/* ── sm+: tabla ── */}
+      <Card className="hidden sm:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

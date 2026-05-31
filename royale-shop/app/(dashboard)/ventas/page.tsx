@@ -397,8 +397,45 @@ export default function VentasPage() {
         </div>
       </Card>
 
-      {/* Table */}
-      <Card>
+      {/* ── Móvil (<sm): lista de cards — sin scroll horizontal ── */}
+      <div className="sm:hidden space-y-2">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i} className="p-4"><Skeleton className="h-16 w-full" /></Card>
+          ))
+        ) : filtered.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-muted-foreground">
+            {sales.length === 0 ? "Sin ventas registradas todavía." : "Sin resultados para los filtros aplicados."}
+          </Card>
+        ) : (
+          filtered.map((sale) => (
+            <button key={sale.id} type="button" onClick={() => setDetail(sale)} className="block w-full text-left">
+              <Card className="p-4 active:scale-[0.99] transition-transform">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="font-mono text-xs font-medium truncate">{sale.folio ?? "—"}</span>
+                  <Badge variant={STATUS_VARIANT[sale.status] ?? "secondary"}>
+                    {STATUS_LABEL[sale.status] ?? sale.status}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">{formatDateTime(sale.createdAt)}</p>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {METHOD_LABEL[sale.paymentMethod] ?? sale.paymentMethod}
+                      {sale.customerName ? ` · ${sale.customerName}` : ""}
+                    </p>
+                    <p className="text-lg font-semibold font-mono">{formatMXN(parseFloat(sale.total))}</p>
+                  </div>
+                  <span className="text-primary text-sm font-medium shrink-0">Ver →</span>
+                </div>
+              </Card>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* ── sm+: tabla ── */}
+      <Card className="hidden sm:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -589,24 +626,26 @@ export default function VentasPage() {
                 <div>
                   <p className="text-sm font-medium mb-2">Artículos</p>
                   <div className="rounded-lg border overflow-hidden">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-muted/50 border-b">
-                          <th className="text-left px-3 py-2 font-medium">Nombre</th>
-                          <th className="text-right px-3 py-2 font-medium">Precio</th>
-                          <th className="text-right px-3 py-2 font-medium">Cant.</th>
-                          <th className="text-right px-3 py-2 font-medium">Subtotal</th>
+                          <th className="text-left px-2.5 py-1.5 font-medium">Nombre</th>
+                          <th className="text-right px-2.5 py-1.5 font-medium">Precio</th>
+                          <th className="text-right px-2.5 py-1.5 font-medium">Cant.</th>
+                          <th className="text-right px-2.5 py-1.5 font-medium">Subtotal</th>
                         </tr>
                       </thead>
                       <tbody>
                         {detail.items.map((item) => (
                           <tr key={item.id} className="border-b last:border-0">
-                            <td className="px-3 py-2">{item.name}</td>
-                            <td className="px-3 py-2 text-right font-mono">
+                            <td className="px-2.5 py-1.5">
+                              <span className="block truncate max-w-[40vw] sm:max-w-[200px]">{item.name}</span>
+                            </td>
+                            <td className="px-2.5 py-1.5 text-right font-mono whitespace-nowrap">
                               {formatMXN(parseFloat(item.price))}
                             </td>
-                            <td className="px-3 py-2 text-right">{item.quantity}</td>
-                            <td className="px-3 py-2 text-right font-mono">
+                            <td className="px-2.5 py-1.5 text-right">{item.quantity}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono whitespace-nowrap">
                               {formatMXN(parseFloat(item.subtotal))}
                             </td>
                           </tr>
