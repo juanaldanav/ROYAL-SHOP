@@ -37,11 +37,40 @@ Deuda de seguridad — hacer **antes de onboarding masivo de clientes**.
 - Toca: `lib` de auth (`/api/auth/login` compara texto plano), `scripts/seed-clean.ts`/seed,
   y `scripts/create-tenant.ts`. Migrar los PINs existentes en prod.
 
-### 3. Flujo completo de inventario
-- **CU1**: captura manual de inventario.
-- **CU2**: import `.xlsx` (hoy solo hay import CSV).
-- **CU4**: conteo físico con conciliación.
-- **CU5**: verificar traspasos entre sucursales (con cámara/QR según RF-05).
+### 3. Flujo completo de inventario (casos de uso definidos)
+
+**CU1 — Llegó mercancía (captura manual):**
+El trabajador busca el producto en `/inventario`, captura cuántas piezas llegaron y
+en qué sucursal. El sistema **suma** al stock actual en `BranchStock`. Queda
+registrado quién lo hizo y cuándo.
+
+**CU2 — Llegó mercancía en volumen (xlsx):**
+La dueña descarga la plantilla, llena: Producto/SKU, Sucursal, Cantidad que llegó.
+Sube el archivo. El sistema **suma todo** en una sola operación.
+(Hoy solo existe import CSV de inventario — extender a xlsx + modo "sumar".)
+
+**CU3 — Venta:** ✅ Ya funciona — al cerrar venta descuenta automáticamente de
+`BranchStock`. Stock nunca negativo, bloquea sobreventa.
+
+**CU4 — Conteo físico (el viernes):**
+1. Descargar reporte de existencias desde `/inventario`.
+2. El xlsx tiene: Producto, SKU, Sucursal, **Stock Sistema**, **Físico** (columna
+   vacía), **Diferencia** (fórmula automática).
+3. El trabajador llena la columna **Físico** con lo contado.
+4. Sube ese mismo archivo.
+5. El sistema **ajusta** `BranchStock` con la diferencia.
+6. Registra el ajuste: fecha, usuario, motivo opcional.
+
+**CU5 — Traspaso entre sucursales:**
+Ya existe el módulo. **Verificar** que descuente de origen y sume en destino
+correctamente (con cámara/QR según RF-05).
+
+**Reglas globales de inventario (todas las CU):**
+- Siempre filtrar por `tenantId`.
+- Siempre registrar **quién** hizo el movimiento y **cuándo**.
+- Stock **nunca negativo**.
+- Todos los movimientos en un **log auditable** (modelo nuevo de movimientos de
+  inventario, distinto de `CashMovement`).
 
 ### 4. Reconciliar repo git con prod
 - **Nota de realidad:** el **código** ya se reconcilió en el commit `b7ff34f`
