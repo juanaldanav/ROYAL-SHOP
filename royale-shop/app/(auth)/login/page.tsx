@@ -4,19 +4,10 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Delete } from "lucide-react"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useSession, type SessionUser } from "@/contexts/session-context"
+import { RoyaleLogo } from "@/components/ui/royale-logo"
 
-type Branch = { id: string; name: string }
+type Branch = { id: string; name: string; tenantName?: string }
 
 export default function LoginPage() {
   const router = useRouter()
@@ -27,19 +18,35 @@ export default function LoginPage() {
   const [pin, setPin] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // Already logged in → go to dashboard
   useEffect(() => {
     if (loaded && user) router.replace("/dashboard")
   }, [loaded, user, router])
 
   useEffect(() => {
-    fetch("/api/branches")
+    fetch("/api/auth/branches")
       .then((r) => r.json())
       .then((data: Branch[]) => {
         setBranches(data)
         if (data.length === 1) setBranchId(data[0].id)
       })
       .catch(() => toast.error("No se pudieron cargar las sucursales"))
+  }, [])
+
+  // Mostrar nombre del negocio en el chip solo cuando hay más de un tenant
+  const multiTenant = new Set(branches.map((b) => b.tenantName)).size > 1
+
+  // Physical keyboard support
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.repeat) return
+      if (/^\d$/.test(e.key)) {
+        setPin((p) => (p.length < 4 ? p + e.key : p))
+      } else if (e.key === "Backspace") {
+        setPin((p) => p.slice(0, -1))
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
   }, [])
 
   function pressKey(k: string) {
@@ -89,89 +96,93 @@ export default function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin])
 
-  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
-
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="text-center pb-2">
-        <div className="flex justify-center mb-3">
-          <Image src="/logo.jpg" alt="Royal Shop" width={110} height={110} className="rounded-full object-cover" />
-        </div>
-        <CardTitle className="text-xl">Royale Shop</CardTitle>
-        <p className="text-sm text-muted-foreground">Ingresa tu PIN para continuar</p>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Branch selector */}
-        <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")}>
-          <SelectTrigger className="min-h-[44px]">
-            <SelectValue>
-              {(v: string | null) => v ? (branches.find(b => b.id === v)?.name ?? v) : "Selecciona sucursal"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
+    <div className="w-full max-w-[384px] bg-white rounded-3xl overflow-hidden shadow-2xl">
+      {/* Header */}
+      <div className="flex flex-col items-center pt-8 pb-4 px-6">
+        <RoyaleLogo size={140} />
+        <p className="text-sm text-muted-foreground -mt-1">Ingresa tu PIN para continuar</p>
+      </div>
+
+      <div className="px-6 pb-8 space-y-5">
+        {/* Branch selector — chip buttons, no native select */}
+        {branches.length > 0 && (
+          <div className={`flex gap-2 ${branches.length > 2 ? "flex-wrap" : ""}`}>
             {branches.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
+              <button
+                key={b.id}
+                type="button"
+                disabled={loading}
+                onClick={() => setBranchId(b.id)}
+                className={`flex-1 min-w-[44%] min-h-[44px] px-2 rounded-xl border text-sm font-semibold transition-all active:scale-95 disabled:opacity-40 ${
+                  branchId === b.id
+                    ? "bg-[#0A0A0A] text-white border-[#0A0A0A]"
+                    : "bg-white text-[#0A0A0A] border-[#E8E8E8] hover:bg-[#F7F7F7]"
+                }`}
+              >
+                {multiTenant && b.tenantName && (
+                  <span className="block text-[10px] font-medium opacity-60 leading-tight">{b.tenantName}</span>
+                )}
                 {b.name}
-              </SelectItem>
+              </button>
             ))}
-          </SelectContent>
-        </Select>
+          </div>
+        )}
 
         {/* PIN dots */}
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center gap-4 py-1">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className={`size-4 rounded-full border-2 transition-colors ${
+              className={`size-4 rounded-full transition-all duration-150 ${
                 i < pin.length
-                  ? "bg-primary border-primary"
-                  : "border-muted-foreground/40"
+                  ? "bg-[#D4A820] scale-110"
+                  : "border-2 border-muted-foreground/30"
               }`}
             />
           ))}
         </div>
 
         {/* Keypad */}
-        <div className="grid grid-cols-3 gap-2">
-          {keys.slice(0, 9).map((k) => (
-            <Button
+        <div className="grid grid-cols-3 gap-2.5">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((k) => (
+            <button
               key={k}
-              variant="outline"
-              className="h-14 text-xl font-semibold"
               onClick={() => pressKey(k)}
               disabled={loading}
+              className="h-14 text-xl font-semibold rounded-xl border border-[#E8E8E8] bg-white hover:bg-[#F7F7F7] active:scale-95 transition-all disabled:opacity-40 tabular-nums"
             >
               {k}
-            </Button>
+            </button>
           ))}
-          {/* Bottom row: empty, 0, backspace */}
+          {/* Bottom row */}
           <div />
-          <Button
-            variant="outline"
-            className="h-14 text-xl font-semibold"
+          <button
             onClick={() => pressKey("0")}
             disabled={loading}
+            className="h-14 text-xl font-semibold rounded-xl border border-[#E8E8E8] bg-white hover:bg-[#F7F7F7] active:scale-95 transition-all disabled:opacity-40 tabular-nums"
           >
             0
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-14"
+          </button>
+          <button
             onClick={backspace}
             disabled={loading}
+            className="h-14 flex items-center justify-center rounded-xl hover:bg-[#F7F7F7] active:scale-95 transition-all disabled:opacity-40"
+            aria-label="Borrar"
           >
-            <Delete className="size-5" />
-          </Button>
+            <Delete className="size-5 text-muted-foreground" />
+          </button>
         </div>
 
-        <Button
-          className="w-full min-h-[44px]"
+        {/* Submit */}
+        <button
           onClick={handleSubmit}
           disabled={loading || pin.length !== 4 || !branchId}
+          className="w-full min-h-[48px] bg-[#0A0A0A] text-white font-bold rounded-xl text-base disabled:opacity-40 transition-opacity active:scale-[0.98]"
         >
-          {loading ? "Verificando..." : "Entrar"}
-        </Button>
-      </CardContent>
-    </Card>
+          {loading ? "Verificando…" : "Entrar"}
+        </button>
+      </div>
+    </div>
   )
 }

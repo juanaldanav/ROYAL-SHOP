@@ -6,11 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed:clean": "npx tsx scripts/seed-clean.ts",
+    "create-tenant": "npx tsx scripts/create-tenant.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@prisma/adapter-pg": "^7.8.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@types/papaparse": "^5.5.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -33,10 +38,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.7"
   }
 }
