@@ -5,6 +5,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { PaymentMethod } from "@/app/generated/prisma/client"
 import { generateFolio } from "@/lib/format"
 
+// Error de negocio: no hay stock suficiente (o no existe row) para vender.
+// Se lanza dentro de la transacción → rollback → 409 al cliente.
+class InsufficientStockError extends Error {
+  constructor(public productName: string) {
+    super(`Stock insuficiente para "${productName}" en esta sucursal`)
+    this.name = "InsufficientStockError"
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { tenantId, branchId: sessionBranchId } = getSession(req)
@@ -172,19 +181,24 @@ export async function POST(req: NextRequest) {
         },
       })
 
-      // Decrement BranchStock per product
+      // Descuenta BranchStock por producto — atómico, sin negativos.
+      // updateMany con guarda stock>=qty: decremento atómico (sin race) y
+      // si afecta 0 filas (sin stock o sin row) lanza error → rollback + 409.
+      // Simétrico con el cancel (que hace increment de la misma qty).
       for (const item of items) {
         if (item.productId) {
-          const bs = await tx.branchStock.findUnique({
-            where: { tenantId_branchId_productId: { tenantId, branchId, productId: item.productId } },
-            select: { stock: true },
+          const { count } = await tx.branchStock.updateMany({
+            where: {
+              tenantId,
+              branchId,
+              productId: item.productId,
+              stock: { gte: item.quantity },
+            },
+            data: { stock: { decrement: item.quantity } },
           })
-          const currentStock = bs?.stock ?? 0
-          await tx.branchStock.upsert({
-            where: { tenantId_branchId_productId: { tenantId, branchId, productId: item.productId } },
-            update: { stock: Math.max(0, currentStock - item.quantity) },
-            create: { tenantId, branchId, productId: item.productId, stock: 0 },
-          })
+          if (count === 0) {
+            throw new InsufficientStockError(item.name)
+          }
         }
       }
 
@@ -209,6 +223,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(sale, { status: 201 })
   } catch (error) {
+    if (error instanceof InsufficientStockError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
     console.error("[POST /api/sales]", error)
     return NextResponse.json({ error: "Error al crear la venta" }, { status: 500 })
   }

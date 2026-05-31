@@ -39,6 +39,7 @@ function mockTx(paymentCreate = vi.fn().mockResolvedValue({})) {
     branchStock: {
       findUnique: vi.fn().mockResolvedValue({ stock: 10 }),
       upsert: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     payment: { create: paymentCreate },
   }
@@ -100,7 +101,7 @@ describe("POST /api/sales — Payment records", () => {
     const tx4 = {
       product: { findUnique: vi.fn().mockResolvedValue({ cost: 150 }) },
       sale: { create: vi.fn().mockResolvedValue({ ...BASE_SALE, total: 300 }) },
-      branchStock: { findUnique: vi.fn().mockResolvedValue({ stock: 5 }), upsert: vi.fn().mockResolvedValue({}) },
+      branchStock: { findUnique: vi.fn().mockResolvedValue({ stock: 5 }), upsert: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       payment: { create: paymentCreate },
     }
     vi.mocked(db.$transaction).mockImplementation(async (fn: (tx: never) => unknown) => fn(tx4 as never))
@@ -128,7 +129,7 @@ describe("POST /api/sales — Payment records", () => {
     const tx5 = {
       product: { findUnique: vi.fn().mockResolvedValue({ cost: 150 }) },
       sale: { create: vi.fn().mockResolvedValue({ ...BASE_SALE, total: 300 }) },
-      branchStock: { findUnique: vi.fn().mockResolvedValue({ stock: 5 }), upsert: vi.fn().mockResolvedValue({}) },
+      branchStock: { findUnique: vi.fn().mockResolvedValue({ stock: 5 }), upsert: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       payment: { create: paymentCreate },
     }
     vi.mocked(db.$transaction).mockImplementation(async (fn: (tx: never) => unknown) => fn(tx5 as never))
