@@ -4,8 +4,9 @@ export const dynamic = "force-dynamic"
 
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { AlertTriangle, RefreshCw } from "lucide-react"
+import { AlertTriangle, RefreshCw, Wallet } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useSession } from "@/contexts/session-context"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -60,6 +61,8 @@ type CloseResult = CashCut & {
 }
 
 export default function CortesPage() {
+  const { user } = useSession()
+  const isCashier = user?.role === "CASHIER"
   const [cuts, setCuts] = useState<CashCut[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -189,8 +192,10 @@ export default function CortesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Cortes de Caja</h1>
-          <p className="text-sm text-muted-foreground">Control de turnos y efectivo</p>
+          <h1 className="text-2xl font-bold">{isCashier ? "Mi Turno" : "Cortes de Caja"}</h1>
+          <p className="text-sm text-muted-foreground">
+            {isCashier ? "Tu turno de caja actual" : "Control de turnos y efectivo"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -211,11 +216,61 @@ export default function CortesPage() {
               setOpenDialog(true)
             }}
           >
-            Abrir Corte
+            {isCashier ? "Abrir Turno" : "Abrir Corte"}
           </Button>
         </div>
       </div>
 
+      {/* ── CASHIER: "Mi Turno" — solo el turno activo, sin historial ── */}
+      {isCashier && loading && (
+        <Card className="p-6"><Skeleton className="h-24 w-full" /></Card>
+      )}
+      {isCashier && !loading && (
+        openCut ? (
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="size-2.5 rounded-full bg-[var(--rs-gold)] shrink-0" />
+              <span className="font-semibold">Turno abierto</span>
+              <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+                desde {formatDateTime(openCut.openedAt)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs">Ventas del turno</p>
+                <p className="text-xl font-semibold">{openCut._count.sales}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Saldo inicial</p>
+                <p className="text-xl font-semibold font-mono">{formatMXN(parseFloat(openCut.openingBalance))}</p>
+              </div>
+            </div>
+            <Button className="w-full min-h-[48px] mt-5" onClick={() => openCloseCutDialog(openCut)}>
+              Cerrar Turno
+            </Button>
+          </Card>
+        ) : (
+          <Card className="p-8 text-center">
+            <div className="mx-auto mb-4 size-12 rounded-full bg-muted flex items-center justify-center">
+              <Wallet className="size-6 text-muted-foreground" />
+            </div>
+            <p className="font-semibold mb-1">No tienes un turno abierto</p>
+            <p className="text-sm text-muted-foreground mb-5">
+              Abre tu turno para empezar a registrar ventas.
+            </p>
+            <Button
+              className="min-h-[48px] px-6"
+              onClick={() => { setOpeningBalance(""); setOpenDialog(true) }}
+            >
+              Abrir Turno
+            </Button>
+          </Card>
+        )
+      )}
+
+      {/* ── OWNER/MANAGER: banner + historial completo de cortes ── */}
+      {!isCashier && (
+      <>
       {/* Status Banner */}
       {!loading && (
         openCut ? (
@@ -345,6 +400,8 @@ export default function CortesPage() {
           </table>
         </div>
       </Card>
+      </>
+      )}
 
       {/* ── Open Corte Dialog ── */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
