@@ -167,8 +167,9 @@
 | 6 | Modal apertura caja | ✅ | Al iniciar sesión, si el CASHIER no tiene turno, modal "Abrir caja / Hacerlo después" (sessionStorage, no bloquea). |
 | 7 | Orden menú | ✅ | "Mis Turnos" antes de "Mis Ventas" (NAV_CASHIER y bottom nav). |
 | 8 | Mis Turnos | ✅ | `/cortes` para CASHIER = "Mi Turno": solo turno activo, estado vacío con "Abrir Turno", sin historial ajeno. Historial completo solo OWNER/MANAGER. |
+| 9 | Notas en ticket | ✅ | Campo "Nota (opcional)" en el cobro del POS; se guarda en `Sale.notes` y se muestra en ticket de pantalla, detalle de venta y PDF (WhatsApp/correo). |
 
-Pendiente de Diana: **9 (notas en ticket)** — `Sale.notes` existe en schema, falta capturarlo en POS y mostrarlo en el ticket.
+**Los 9 requerimientos de Diana: COMPLETOS.**
 
 ### Extra entregado 2026-05-31
 - **Reporte xlsx de inventario** (`GET /api/reports/inventory`, exceljs): stock y mínimo por sucursal (dinámico), última venta, costo, precio. Botón en /inventario (OWNER/MANAGER).
